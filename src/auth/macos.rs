@@ -1,17 +1,18 @@
 //! macOS owner authentication: Touch ID, with the account password as fallback.
 //! The prompt is asynchronous so the window run loop can keep drawing it.
 
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc;
 
 use block2::RcBlock;
 use objc2::runtime::Bool;
 use objc2_foundation::{NSError, NSString};
 use objc2_local_authentication::{LAContext, LAError, LAPolicy};
 
-pub struct PendingAuth {
+use super::PendingAuth;
+
+pub struct Session {
     _context: objc2::rc::Retained<LAContext>,
     _block: RcBlock<dyn Fn(Bool, *mut NSError)>,
-    pub rx: Receiver<Result<(), String>>,
 }
 
 pub fn begin(on_done: impl Fn() + Send + 'static) -> Result<PendingAuth, String> {
@@ -36,9 +37,11 @@ pub fn begin(on_done: impl Fn() + Send + 'static) -> Result<PendingAuth, String>
         context.evaluatePolicy_localizedReason_reply(policy, &reason, &block);
     }
     Ok(PendingAuth {
-        _context: context,
-        _block: block,
         rx,
+        _macos: Session {
+            _context: context,
+            _block: block,
+        },
     })
 }
 

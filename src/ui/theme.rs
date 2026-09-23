@@ -16,9 +16,10 @@ pub fn install_cjk_font(ctx: &egui::Context) {
         family.push("terminal".to_owned());
     }
     if let Some(bytes) = cjk_font_bytes() {
-        fonts
-            .font_data
-            .insert("cjk".to_owned(), Arc::new(egui::FontData::from_owned(bytes)));
+        fonts.font_data.insert(
+            "cjk".to_owned(),
+            Arc::new(egui::FontData::from_owned(bytes)),
+        );
         family.push("cjk".to_owned());
     }
     if family.is_empty() {
@@ -34,27 +35,65 @@ pub fn install_cjk_font(ctx: &egui::Context) {
 }
 
 fn terminal_font_bytes() -> Option<Vec<u8>> {
-    [
-        "/System/Library/Fonts/Monaco.ttf",
-        "/System/Library/Fonts/Menlo.ttc",
-        "/System/Library/Fonts/Supplemental/PTMono.ttc",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        r"C:\Windows\Fonts\consola.ttf",
-    ]
-    .into_iter()
-    .find_map(|path| std::fs::read(path).ok())
+    read_first_font(
+        &[
+            "/System/Library/Fonts/Monaco.ttf",
+            "/System/Library/Fonts/Menlo.ttc",
+            "/System/Library/Fonts/Supplemental/PTMono.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        ],
+        &["consola.ttf", "CascadiaMono.ttf", "cour.ttf", "lucon.ttf"],
+    )
 }
 
 fn cjk_font_bytes() -> Option<Vec<u8>> {
-    [
-        "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        "/System/Library/Fonts/STHeiti Medium.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        r"C:\Windows\Fonts\msyh.ttc",
-    ]
-    .into_iter()
-    .find_map(|path| std::fs::read(path).ok())
+    // Windows 的 `msyh.ttc` 是字体集，egui 使用 face 0（微软雅黑常规）。
+    // 系统盘不一定是 C:，所以先查 `%SystemRoot%\Fonts`，再回退到 `C:\Windows\Fonts`。
+    read_first_font(
+        &[
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        ],
+        &[
+            "msyh.ttc",
+            "msyh.ttf",
+            "simsun.ttc",
+            "msjh.ttc",
+            "malgun.ttf",
+            "YuGothM.ttc",
+        ],
+    )
+}
+
+fn read_first_font(shared: &[&str], windows_names: &[&str]) -> Option<Vec<u8>> {
+    for path in shared {
+        if let Ok(bytes) = std::fs::read(path) {
+            return Some(bytes);
+        }
+    }
+    for path in windows_font_paths(windows_names) {
+        if let Ok(bytes) = std::fs::read(&path) {
+            return Some(bytes);
+        }
+    }
+    None
+}
+
+fn windows_font_paths(names: &[&str]) -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(root) = std::env::var("SystemRoot") {
+        dirs.push(std::path::PathBuf::from(root).join("Fonts"));
+    }
+    let fallback = std::path::PathBuf::from(r"C:\Windows\Fonts");
+    if !dirs.iter().any(|dir| dir == &fallback) {
+        dirs.push(fallback);
+    }
+    dirs.into_iter()
+        .flat_map(|dir| names.iter().map(|name| dir.join(name)).collect::<Vec<_>>())
+        .collect()
 }
 
 fn apply_terminal_style(ctx: &egui::Context) {
@@ -151,17 +190,20 @@ pub(super) fn scale_tick(ui: &mut egui::Ui, t: f32) {
     let width = (ui.available_width() - 120.0).max(48.0);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 14.0), egui::Sense::hover());
     let y = rect.center().y;
-    ui.painter()
-        .hline(rect.x_range(), y, egui::Stroke::new(1.0, egui::Color32::BLACK));
+    ui.painter().hline(
+        rect.x_range(),
+        y,
+        egui::Stroke::new(1.0, egui::Color32::BLACK),
+    );
     let x = rect.left() + rect.width() * t.clamp(0.04, 0.96);
     let mark = egui::Rect::from_center_size(egui::pos2(x, y), egui::vec2(7.0, 7.0));
     ui.painter().rect_filled(mark, 0.0, egui::Color32::BLACK);
 }
 
 pub(super) fn tick_at(key: &str) -> f32 {
-    let hash = key
-        .bytes()
-        .fold(0u32, |acc, byte| acc.wrapping_mul(33).wrapping_add(byte as u32));
+    let hash = key.bytes().fold(0u32, |acc, byte| {
+        acc.wrapping_mul(33).wrapping_add(byte as u32)
+    });
     (hash % 100) as f32 / 100.0
 }
 
@@ -279,6 +321,21 @@ fn decode_png(bytes: &[u8]) -> egui::ColorImage {
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::windows_font_paths;
+
+    #[test]
+    fn windows_font_list_includes_yahei() {
+        let rendered: Vec<String> = windows_font_paths(&["msyh.ttc"])
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect();
+        assert!(rendered.iter().any(|path| path.contains("msyh.ttc")));
+        assert!(rendered.iter().any(|path| path.contains("Fonts")));
+    }
+}
+
 pub(super) fn pixel_mark(ui: &mut egui::Ui, size: f32) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
     ui.painter().rect_stroke(
@@ -288,13 +345,7 @@ pub(super) fn pixel_mark(ui: &mut egui::Ui, size: f32) {
         egui::StrokeKind::Inside,
     );
     const CELLS: &[&str] = &[
-        "#.#.#.#",
-        "#.....#",
-        "#.###.#",
-        "#.#.#.#",
-        "#.###.#",
-        "#.....#",
-        "#.#.#.#",
+        "#.#.#.#", "#.....#", "#.###.#", "#.#.#.#", "#.###.#", "#.....#", "#.#.#.#",
     ];
     let cell = (size - 10.0) / CELLS.len() as f32;
     let origin = rect.min + egui::vec2(5.0, 5.0);

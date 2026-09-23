@@ -127,8 +127,8 @@ impl KeyDesk {
         ui.add_space(8.0);
         theme::ruled_frame().show(ui, |ui| {
             ui.label(egui::RichText::new("LOCKED").monospace().size(28.0));
-            ui.monospace("Touch ID or Mac password");
-            ui.monospace("required every time key-desk opens");
+            ui.monospace(auth::lock_prompt());
+            ui.monospace(auth::lock_detail());
             if self.auth.is_some() {
                 ui.monospace("waiting...");
             }

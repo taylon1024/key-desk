@@ -4,6 +4,7 @@ mod ui;
 mod crypto;
 mod db;
 mod models;
+mod os_key;
 mod provider;
 mod system_env;
 
