@@ -70,6 +70,7 @@ impl UpsertVariable {
             .trim()
             .to_string();
         validate_scope(&scope)?;
+        validate_value(&self.value)?;
 
         Ok(NewVariable {
             key,
@@ -85,13 +86,26 @@ impl UpsertVariable {
 pub fn validate_key(key: &str) -> Result<(), String> {
     let mut chars = key.chars();
     let Some(first) = chars.next() else {
-        return Err("变量名不能为空".to_string());
+        return Err("name cannot be empty".to_string());
     };
     if !(first.is_ascii_alphabetic() || first == '_') {
-        return Err("变量名必须以字母或下划线开头".to_string());
+        return Err("name must start with a letter or underscore".to_string());
     }
     if !chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err("变量名只能包含字母、数字和下划线".to_string());
+        return Err("name can only contain letters, digits, and underscores".to_string());
+    }
+    Ok(())
+}
+
+const MAX_VALUE_LEN: usize = 4096;
+
+/// 值只要求非空且不超过长度上限，不限制字符格式。
+pub fn validate_value(value: &str) -> Result<(), String> {
+    if value.is_empty() {
+        return Err("value cannot be empty".to_string());
+    }
+    if value.chars().count() > MAX_VALUE_LEN {
+        return Err(format!("value cannot exceed {MAX_VALUE_LEN} characters"));
     }
     Ok(())
 }
@@ -99,13 +113,13 @@ pub fn validate_key(key: &str) -> Result<(), String> {
 /// 作用域不能为空，只允许字母、数字、`.`、`_`、`-`。
 pub fn validate_scope(scope: &str) -> Result<(), String> {
     if scope.is_empty() {
-        return Err("作用域不能为空".to_string());
+        return Err("scope cannot be empty".to_string());
     }
     if !scope
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
     {
-        return Err("作用域只能包含字母、数字、点、下划线和连字符".to_string());
+        return Err("scope can only contain letters, digits, dots, underscores, and hyphens".to_string());
     }
     Ok(())
 }
@@ -153,6 +167,14 @@ mod tests {
     fn accepts_typical_env_keys() {
         assert!(validate_key("DATABASE_URL").is_ok());
         assert!(validate_key("_PRIVATE").is_ok());
+    }
+
+    #[test]
+    fn accepts_any_api_key_text_within_length() {
+        assert!(validate_value("sk-ant-api03/+=._~").is_ok());
+        assert!(validate_value("任意格式的密钥 123").is_ok());
+        assert!(validate_value("").is_err());
+        assert!(validate_value(&"x".repeat(4097)).is_err());
     }
 
     #[test]

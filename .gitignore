@@ -1,5 +1,6 @@
 /target
 /data
 *.db
+*.key
 .DS_Store
 /.vscode

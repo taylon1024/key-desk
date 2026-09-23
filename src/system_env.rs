@@ -20,25 +20,25 @@ pub enum EnvSource {
 impl EnvSource {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Process => "当前进程",
-            Self::LoginShell => "登录 Shell（接近 Terminal）",
+            Self::Process => "process",
+            Self::LoginShell => "login shell",
         }
     }
 
     pub fn import_description(self) -> &'static str {
         match self {
-            Self::Process => "从进程环境导入",
-            Self::LoginShell => "从登录 Shell 环境导入",
+            Self::Process => "imported from process env",
+            Self::LoginShell => "imported from login shell",
         }
     }
 
     pub fn hint(self) -> &'static str {
         match self {
             Self::Process => {
-                "仅包含启动 key-desk 时带入的变量；从 Dock 打开时通常比 Terminal 少。"
+                "Variables inherited when key-desk started. A Dock launch usually has fewer than Terminal."
             }
             Self::LoginShell => {
-                "通过登录 shell 执行 printenv，会读取 ~/.zprofile 等；与「新开 Terminal 标签」更接近，但仍可能和已手动 export 的当前标签不完全一致。"
+                "printenv from a login shell, including ~/.zprofile. Close to a new Terminal window, not a one-off export in the current tab."
             }
         }
     }
@@ -80,11 +80,11 @@ fn list_login_shell_env() -> Result<Vec<EnvVar>, String> {
         .arg("-c")
         .arg("/usr/bin/printenv")
         .output()
-        .map_err(|err| format!("无法运行登录 shell ({shell_display}): {err}"))?;
+        .map_err(|err| format!("failed to run login shell ({shell_display}): {err}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "登录 shell 执行失败 ({}): {}",
+            "login shell failed ({}): {}",
             output.status,
             stderr.trim()
         ));
@@ -180,9 +180,10 @@ pub fn import_into_db(
 
 fn format_db(err: DbError) -> String {
     match err {
-        DbError::NotFound => "变量不存在".to_string(),
-        DbError::Conflict => "同一作用域下变量名已存在".to_string(),
-        DbError::Other(err) => format!("数据库错误: {err}"),
+        DbError::NotFound => "variable not found".to_string(),
+        DbError::Conflict => "name already exists in this scope".to_string(),
+        DbError::Crypto(err) => format!("crypto failed: {err}"),
+        DbError::Other(err) => format!("database error: {err}"),
     }
 }
 
@@ -203,7 +204,7 @@ mod tests {
             "DATABASE_URL".into(),
             "postgres://".into(),
             "env",
-            "从登录 Shell 环境导入",
+            "imported from login shell",
         )
         .normalize()
         .unwrap();
