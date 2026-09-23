@@ -49,6 +49,7 @@ pub fn open(path: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
+#[cfg_attr(not(unix), allow(unused_variables))]
 fn restrict_db_file(path: &Path) {
     #[cfg(unix)]
     {
