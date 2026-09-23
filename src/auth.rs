@@ -11,6 +11,7 @@ use objc2_local_authentication::{LAContext, LAError, LAPolicy};
 pub struct PendingAuth {
     _context: objc2::rc::Retained<LAContext>,
     _block: RcBlock<dyn Fn(Bool, *mut NSError)>,
+    #[cfg_attr(feature = "dev", allow(dead_code))]
     pub rx: Receiver<Result<(), String>>,
 }
 

@@ -72,6 +72,40 @@ pub fn list_process_env() -> Vec<EnvVar> {
     from_pairs(std::env::vars())
 }
 
+/// 登录 shell 里是否已有这个变量。未设置时返回 `Ok(None)`。
+pub fn lookup_login_shell_var(key: &str) -> Result<Option<String>, String> {
+    let shell = login_shell();
+    let shell_display = shell.display().to_string();
+    let output = Command::new(&shell)
+        .arg("-l")
+        .arg("-c")
+        .arg("/usr/bin/printenv \"$1\"")
+        .arg("key-desk")
+        .arg(key)
+        .output()
+        .map_err(|err| format!("failed to run login shell ({shell_display}): {err}"))?;
+    if output.status.success() {
+        Ok(Some(trim_printenv_newline(&output.stdout)))
+    } else if output.status.code() == Some(1) {
+        Ok(None)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "login shell failed ({}): {}",
+            output.status,
+            stderr.trim()
+        ))
+    }
+}
+
+fn trim_printenv_newline(bytes: &[u8]) -> String {
+    let mut text = String::from_utf8_lossy(bytes).into_owned();
+    if text.ends_with('\n') {
+        text.pop();
+    }
+    text
+}
+
 fn list_login_shell_env() -> Result<Vec<EnvVar>, String> {
     let shell = login_shell();
     let shell_display = shell.display().to_string();
@@ -213,9 +247,24 @@ mod tests {
     }
 
     #[test]
+    fn missing_login_shell_var_is_absent() {
+        let found = lookup_login_shell_var("KEY_DESK_MISSING_VAR_ZZZ").unwrap();
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn trims_only_the_trailing_newline_printenv_adds() {
+        assert_eq!(trim_printenv_newline(b"sk-test\n"), "sk-test");
+        assert_eq!(trim_printenv_newline(b"keep\nline"), "keep\nline");
+    }
+
+    #[test]
     fn parses_printenv_lines() {
         let vars = parse_printenv("PATH=/usr/bin\nOPENAI_API_KEY=sk-x\n");
         assert_eq!(vars.len(), 2);
-        assert!(vars.iter().any(|v| v.key == "PATH" && v.value == "/usr/bin"));
+        assert!(
+            vars.iter()
+                .any(|v| v.key == "PATH" && v.value == "/usr/bin")
+        );
     }
 }

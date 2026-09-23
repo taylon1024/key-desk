@@ -4,10 +4,10 @@ mod env_import;
 mod form;
 mod ledger;
 mod masthead;
+mod replace;
 mod theme;
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 
 use eframe::egui;
 use rusqlite::Connection;
@@ -30,11 +30,13 @@ pub struct KeyDesk {
     scope_filter: String,
     form: Form,
     editing_id: Option<i64>,
+    replace_prompt: Option<replace::ReplacePrompt>,
     revealed: HashSet<i64>,
     message: String,
     env_import_open: bool,
     env_import_source: EnvSource,
     env_import_scope: String,
+    env_import_scope_new: bool,
     env_import_filter: String,
     env_vars: Vec<EnvVar>,
     env_selected: HashSet<String>,
@@ -52,11 +54,13 @@ impl KeyDesk {
             scope_filter: String::new(),
             form: Form::default(),
             editing_id: None,
+            replace_prompt: None,
             revealed: HashSet::new(),
             message: String::new(),
             env_import_open: false,
             env_import_source: EnvSource::LoginShell,
             env_import_scope: "env".to_string(),
+            env_import_scope_new: false,
             env_import_filter: String::new(),
             env_vars: Vec::new(),
             env_selected: HashSet::new(),
@@ -165,12 +169,29 @@ impl KeyDesk {
 
     fn reload(&mut self) {
         match db::list(self.db(), None) {
-            Ok(variables) => self.variables = variables,
+            Ok(variables) => {
+                self.variables = variables;
+                if !self.scope_filter.is_empty()
+                    && !self
+                        .variables
+                        .iter()
+                        .any(|variable| variable.scope == self.scope_filter)
+                {
+                    self.scope_filter.clear();
+                }
+            }
             Err(err) => self.message = db_message(err),
         }
     }
 
     fn save(&mut self) {
+        if self.editing_id.is_none()
+            && self.form.kind == form::EntryKind::LlmKey
+            && self.form.provider_label.is_empty()
+        {
+            self.message = "choose a provider first".to_string();
+            return;
+        }
         let input = UpsertVariable {
             key: self.form.key.clone(),
             value: self.form.value.clone(),
@@ -185,14 +206,61 @@ impl KeyDesk {
                 return;
             }
         };
+        if self.editing_id.is_none() && self.prompt_if_name_taken(&input) {
+            return;
+        }
+        self.persist(input, false);
+    }
+
+    fn prompt_if_name_taken(&mut self, input: &NewVariable) -> bool {
+        let system_value = match crate::system_env::lookup_login_shell_var(&input.key) {
+            Ok(value) => value,
+            Err(err) => {
+                self.message = err;
+                return true;
+            }
+        };
+        let stored = match db::find_in_scope(self.db(), &input.scope, &input.key) {
+            Ok(Some(existing)) => Some((existing.scope, existing.description, existing.value)),
+            Ok(None) => None,
+            Err(err) => {
+                self.message = db_message(err);
+                return true;
+            }
+        };
+        if system_value.is_none() && stored.is_none() {
+            return false;
+        }
+        self.replace_prompt = Some(replace::ReplacePrompt::from_existing(
+            input.clone(),
+            system_value,
+            stored,
+        ));
+        true
+    }
+
+    fn confirm_replace(&mut self) {
+        let Some(prompt) = self.replace_prompt.take() else {
+            return;
+        };
+        self.persist(prompt.input, prompt.replacing_stored);
+    }
+
+    fn persist(&mut self, input: NewVariable, replace_existing: bool) {
         let result = if let Some(id) = self.editing_id {
             db::update(self.db(), id, &input)
+        } else if replace_existing {
+            self.write_new_or_replace(&input)
         } else {
             db::insert(self.db(), &input)
         };
         match result {
             Ok(_) => {
-                let mut message = "saved".to_string();
+                let mut message = if replace_existing {
+                    "replaced".to_string()
+                } else {
+                    "saved".to_string()
+                };
                 if self.editing_id.is_none()
                     && self.form.kind == form::EntryKind::LlmKey
                     && !self.form.base_url.is_empty()
@@ -205,8 +273,22 @@ impl KeyDesk {
                         description: Some(format!("{} base url", self.form.provider_label)),
                         is_secret: Some(false),
                     };
-                    message = match base.normalize().and_then(|row| self.insert_row(&row)) {
-                        Ok(()) => "saved key and base url".to_string(),
+                    message = match base.normalize().and_then(|row| {
+                        if replace_existing {
+                            self.write_new_or_replace(&row)
+                        } else {
+                            db::insert(self.db(), &row)
+                        }
+                        .map(|_| ())
+                        .map_err(db_message)
+                    }) {
+                        Ok(()) => {
+                            if replace_existing {
+                                "replaced key and base url".to_string()
+                            } else {
+                                "saved key and base url".to_string()
+                            }
+                        }
                         Err(err) => format!("saved key; base url skipped: {err}"),
                     };
                 }
@@ -219,11 +301,20 @@ impl KeyDesk {
         }
     }
 
-    fn insert_row(&self, row: &NewVariable) -> Result<(), String> {
-        db::insert(self.db(), row).map(|_| ()).map_err(db_message)
+    fn write_new_or_replace(&self, row: &NewVariable) -> Result<Variable, DbError> {
+        match db::find_in_scope(self.db(), &row.scope, &row.key) {
+            Ok(Some(existing)) => db::update(self.db(), existing.id, row),
+            Ok(None) => db::insert(self.db(), row),
+            Err(err) => Err(err),
+        }
     }
 
     fn delete(&mut self, id: i64) {
+        let deleted_scope = self
+            .variables
+            .iter()
+            .find(|variable| variable.id == id)
+            .map(|variable| variable.scope.clone());
         match db::delete(self.db(), id) {
             Ok(()) => {
                 if self.editing_id == Some(id) {
@@ -233,29 +324,38 @@ impl KeyDesk {
                 self.revealed.remove(&id);
                 self.message = "deleted".to_string();
                 self.reload();
+                if let Some(scope) = deleted_scope
+                    && !self
+                        .variables
+                        .iter()
+                        .any(|variable| variable.scope == scope)
+                {
+                    if self.form.scope == scope && !self.form.scope_new && self.editing_id.is_none()
+                    {
+                        self.form.scope = "default".to_string();
+                    }
+                    if self.env_import_scope == scope && !self.env_import_scope_new {
+                        self.env_import_scope = "env".to_string();
+                    }
+                }
             }
             Err(err) => self.message = db_message(err),
         }
     }
 
-    fn export(&mut self) {
+    fn export(&mut self, ctx: &egui::Context) {
         let selected = self
             .variables
             .iter()
             .filter(|variable| self.scope_filter.is_empty() || variable.scope == self.scope_filter)
             .cloned()
             .collect::<Vec<_>>();
-        let text = models::format_dotenv(&selected);
-        let name = if self.scope_filter.is_empty() {
-            "all.env".to_string()
-        } else {
-            format!("{}.env", self.scope_filter)
-        };
-        let path = export_dir().join(name);
-        match std::fs::write(&path, text) {
-            Ok(()) => self.message = format!("exported {}", path.display()),
-            Err(err) => self.message = format!("export failed: {err}"),
+        if selected.is_empty() {
+            self.message = "nothing to copy".to_string();
+            return;
         }
+        ctx.copy_text(models::format_dotenv(&selected));
+        self.message = "copied to clipboard".to_string();
     }
 
     fn start_edit(&mut self, variable: &Variable) {
@@ -275,10 +375,14 @@ impl KeyDesk {
         ui.add_space(8.0);
         theme::ruled_frame().show(ui, |ui| self.show_masthead(ui));
         ui.add_space(8.0);
-        if !self.message.is_empty() {
-            ui.monospace(&self.message);
-            ui.add_space(6.0);
-        }
+        // Keep the status line in the layout even before the first action.
+        // Otherwise every save, copy, or validation error moves both panels.
+        ui.add_sized(
+            [ui.available_width(), 20.0],
+            egui::Label::new(egui::RichText::new(&self.message).monospace()).truncate(),
+        )
+        .on_hover_text(&self.message);
+        ui.add_space(6.0);
         theme::ruled_frame().show(ui, |ui| self.show_list(ui));
         ui.add_space(8.0);
         theme::ruled_frame().show(ui, |ui| self.show_form(ui));
@@ -290,23 +394,16 @@ impl KeyDesk {
 impl eframe::App for KeyDesk {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.poll_unlock(ui.ctx());
-        egui::Frame::central_panel(&ui.style()).show(ui, |ui| {
+        egui::Frame::central_panel(ui.style()).show(ui, |ui| {
             if self.db.is_none() {
                 self.show_lock(ui);
             } else {
                 self.show_env_import_window(ui.ctx());
                 self.show(ui);
+                self.show_replace_prompt(ui.ctx());
             }
         });
     }
-}
-
-fn export_dir() -> PathBuf {
-    db::db_path()
-        .parent()
-        .map(PathBuf::from)
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| PathBuf::from("data"))
 }
 
 fn db_message(err: DbError) -> String {
@@ -316,4 +413,19 @@ fn db_message(err: DbError) -> String {
         DbError::Crypto(err) => format!("crypto failed: {err}"),
         DbError::Other(err) => format!("database error: {err}"),
     }
+}
+
+#[cfg(test)]
+#[test]
+fn main_layout_fits_the_minimum_window_height() {
+    egui::__run_test_ui(|ui| {
+        ui.set_width(640.0);
+        let mut app = KeyDesk::locked();
+        app.show(ui);
+        assert!(
+            ui.min_rect().height() <= 724.0,
+            "{}",
+            ui.min_rect().height()
+        );
+    });
 }

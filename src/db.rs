@@ -63,7 +63,9 @@ fn migrate_plaintext(conn: &Connection) -> Result<(), String> {
         .prepare("SELECT id, value FROM variables")
         .map_err(|err| err.to_string())?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|err| err.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.to_string())?;
@@ -92,8 +94,8 @@ pub fn list(conn: &Connection, scope: Option<&str>) -> Result<Vec<Variable>, DbE
         .map_err(DbError::Other)?;
     let rows = statement
         .query_map(params![scope], map_variable)
-        .map_err(DbError::Other)?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(DbError::Other)
+        .map_err(map_read_error)?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(map_read_error)
 }
 
 pub fn insert(conn: &Connection, input: &NewVariable) -> Result<Variable, DbError> {
@@ -140,6 +142,21 @@ pub fn update(conn: &Connection, id: i64, input: &NewVariable) -> Result<Variabl
     get(conn, id)
 }
 
+pub fn find_in_scope(
+    conn: &Connection,
+    scope: &str,
+    key: &str,
+) -> Result<Option<Variable>, DbError> {
+    conn.query_row(
+        "SELECT id, key, value, scope, description, is_secret, created_at, updated_at
+         FROM variables WHERE scope = ?1 AND key = ?2",
+        params![scope, key],
+        map_variable,
+    )
+    .optional()
+    .map_err(map_read_error)
+}
+
 pub fn delete(conn: &Connection, id: i64) -> Result<(), DbError> {
     let changed = conn
         .execute("DELETE FROM variables WHERE id = ?1", [id])
@@ -159,13 +176,19 @@ fn get(conn: &Connection, id: i64) -> Result<Variable, DbError> {
         map_variable,
     )
     .optional()
-    .map_err(DbError::Other)?
+    .map_err(map_read_error)?
     .ok_or(DbError::NotFound)
 }
 
 fn map_variable(row: &rusqlite::Row<'_>) -> rusqlite::Result<Variable> {
     let stored: String = row.get(2)?;
-    let value = crypto::open(&stored).unwrap_or_else(|_| "unreadable".to_string());
+    let value = crypto::open(&stored).map_err(|err| {
+        rusqlite::Error::FromSqlConversionFailure(
+            2,
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::other(err)),
+        )
+    })?;
     Ok(Variable {
         id: row.get(0)?,
         key: row.get(1)?,
@@ -176,6 +199,15 @@ fn map_variable(row: &rusqlite::Row<'_>) -> rusqlite::Result<Variable> {
         created_at: row.get(6)?,
         updated_at: row.get(7)?,
     })
+}
+
+fn map_read_error(err: rusqlite::Error) -> DbError {
+    match err {
+        rusqlite::Error::FromSqlConversionFailure(_, _, source) => {
+            DbError::Crypto(source.to_string())
+        }
+        other => DbError::Other(other),
+    }
 }
 
 fn map_write_error(err: rusqlite::Error) -> DbError {
@@ -218,16 +250,46 @@ mod tests {
         assert!(created.is_secret);
         assert_eq!(created.value, "secret");
         let stored: String = conn
-            .query_row("SELECT value FROM variables WHERE id = ?1", [created.id], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT value FROM variables WHERE id = ?1",
+                [created.id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert!(stored.starts_with("kd1:"));
         assert!(!stored.contains("secret"));
         assert_eq!(list(&conn, Some("dev")).unwrap().len(), 1);
+        let found = find_in_scope(&conn, "dev", "API_TOKEN").unwrap().unwrap();
+        assert_eq!(found.id, created.id);
+        assert_eq!(found.value, "secret");
+        assert!(find_in_scope(&conn, "prod", "API_TOKEN").unwrap().is_none());
         assert!(matches!(insert(&conn, &input), Err(DbError::Conflict)));
         delete(&conn, created.id).unwrap();
         assert!(list(&conn, None).unwrap().is_empty());
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn corrupted_ciphertext_is_reported_instead_of_exported_as_a_value() {
+        let (conn, path) = temp_db();
+        let input = NewVariable {
+            key: "API_TOKEN".to_string(),
+            value: "secret".to_string(),
+            scope: "dev".to_string(),
+            description: String::new(),
+            is_secret: true,
+        };
+        let created = insert(&conn, &input).unwrap();
+        conn.execute(
+            "UPDATE variables SET value = 'kd1:broken' WHERE id = ?1",
+            [created.id],
+        )
+        .unwrap();
+        assert!(matches!(list(&conn, None), Err(DbError::Crypto(_))));
+        assert!(matches!(
+            find_in_scope(&conn, "dev", "API_TOKEN"),
+            Err(DbError::Crypto(_))
+        ));
         let _ = std::fs::remove_file(path);
     }
 }

@@ -4,6 +4,7 @@ use crate::models;
 use crate::system_env::{self, EnvSource};
 
 use super::KeyDesk;
+use super::form::{scope_choices, show_scope_menu};
 
 struct EnvImportRow {
     key: String,
@@ -45,11 +46,10 @@ impl KeyDesk {
             self.message = err;
             return;
         }
-        let keys: Vec<String> = self.env_selected.iter().cloned().collect();
         let entries = self
             .env_vars
             .iter()
-            .filter(|v| keys.contains(&v.key))
+            .filter(|v| self.env_selected.contains(&v.key))
             .map(|v| (v.key.clone(), v.value.clone()));
         let report = system_env::import_into_db(
             self.db(),
@@ -76,7 +76,8 @@ impl KeyDesk {
         let mut open = self.env_import_open;
         egui::Window::new("import env")
             .open(&mut open)
-            .default_width(520.0)
+            .default_width(440.0)
+            .min_width(440.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("source");
@@ -109,10 +110,17 @@ impl KeyDesk {
                 }
                 ui.horizontal(|ui| {
                     ui.label("scope");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.env_import_scope)
-                            .hint_text("env")
-                            .desired_width(160.0),
+                    let creating_scope = self.env_import_scope_new;
+                    let scopes =
+                        scope_choices(&self.variables, &self.env_import_scope, creating_scope);
+                    show_scope_menu(
+                        ui,
+                        "import-scope",
+                        &scopes,
+                        &mut self.env_import_scope,
+                        &mut self.env_import_scope_new,
+                        160.0,
+                        160.0,
                     );
                 });
                 ui.horizontal(|ui| {
@@ -120,8 +128,10 @@ impl KeyDesk {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.env_import_filter)
                             .hint_text("name prefix")
-                            .desired_width(240.0),
+                            .desired_width(320.0),
                     );
+                });
+                ui.horizontal(|ui| {
                     if ui.button("select importable").clicked() {
                         for v in &self.env_vars {
                             if v.importable {
@@ -160,26 +170,36 @@ impl KeyDesk {
                                         self.env_selected.remove(&row.key);
                                     }
                                 }
-                                ui.monospace(&row.key);
+                                ui.add_sized(
+                                    [140.0, 24.0],
+                                    egui::Label::new(egui::RichText::new(&row.key).monospace())
+                                        .truncate(),
+                                )
+                                .on_hover_text(&row.key);
                                 if !row.importable {
-                                    ui.colored_label(
-                                        egui::Color32::GRAY,
-                                        "(name not allowed)",
-                                    );
+                                    ui.colored_label(egui::Color32::GRAY, "(name not allowed)");
                                 } else {
                                     let preview = if system_env::guess_is_secret(&row.key) {
                                         "••••••••".to_string()
-                                    } else if row.value.len() > 48 {
-                                        format!("{}…", &row.value[..48])
+                                    } else if row.value.chars().count() > 24 {
+                                        format!(
+                                            "{}…",
+                                            row.value.chars().take(24).collect::<String>()
+                                        )
                                     } else {
                                         row.value.clone()
                                     };
-                                    ui.label(preview);
+                                    ui.add_sized(
+                                        [110.0, 24.0],
+                                        egui::Label::new(preview).truncate(),
+                                    );
                                 }
                                 if row.importable && ui.small_button("fill form").clicked() {
+                                    self.form = super::form::Form::default();
                                     self.form.key = row.key.clone();
                                     self.form.value = row.value.clone();
                                     self.form.scope = self.env_import_scope.clone();
+                                    self.form.scope_new = self.env_import_scope_new;
                                     self.form.is_secret = system_env::guess_is_secret(&row.key);
                                     self.editing_id = None;
                                     self.env_import_open = false;
@@ -200,6 +220,6 @@ impl KeyDesk {
                     }
                 });
             });
-        self.env_import_open = open;
+        self.env_import_open &= open;
     }
 }

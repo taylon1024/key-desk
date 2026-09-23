@@ -1,6 +1,6 @@
 [package]
 name = "key-desk"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 
 # Development branch only. Drop this default before merging back onto a release branch.

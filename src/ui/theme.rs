@@ -1,8 +1,12 @@
-//! 黑白终端风格：字体、线框、反色标签、刻度。
+//! 轻量像素终端风格：系统等宽字体、方角边框和少量点阵装饰。
 
 use std::sync::Arc;
 
 use eframe::egui;
+
+const PAPER: egui::Color32 = egui::Color32::from_rgb(252, 250, 249);
+const PINK: egui::Color32 = egui::Color32::from_rgb(229, 145, 167);
+const HOVER: egui::Color32 = egui::Color32::from_rgb(248, 216, 225);
 
 pub fn install_cjk_font(ctx: &egui::Context) {
     apply_terminal_style(ctx);
@@ -16,9 +20,10 @@ pub fn install_cjk_font(ctx: &egui::Context) {
         family.push("terminal".to_owned());
     }
     if let Some(bytes) = cjk_font_bytes() {
-        fonts
-            .font_data
-            .insert("cjk".to_owned(), Arc::new(egui::FontData::from_owned(bytes)));
+        fonts.font_data.insert(
+            "cjk".to_owned(),
+            Arc::new(egui::FontData::from_owned(bytes)),
+        );
         family.push("cjk".to_owned());
     }
     if family.is_empty() {
@@ -59,11 +64,11 @@ fn cjk_font_bytes() -> Option<Vec<u8>> {
 
 fn apply_terminal_style(ctx: &egui::Context) {
     let mut visuals = egui::Visuals::light();
-    visuals.window_fill = egui::Color32::WHITE;
-    visuals.panel_fill = egui::Color32::WHITE;
-    visuals.extreme_bg_color = egui::Color32::WHITE;
-    visuals.faint_bg_color = egui::Color32::from_gray(245);
-    visuals.code_bg_color = egui::Color32::WHITE;
+    visuals.window_fill = PAPER;
+    visuals.panel_fill = PINK;
+    visuals.extreme_bg_color = PAPER;
+    visuals.faint_bg_color = HOVER;
+    visuals.code_bg_color = PAPER;
     visuals.window_stroke = egui::Stroke::new(2.0, egui::Color32::BLACK);
     visuals.window_corner_radius = egui::CornerRadius::ZERO;
     visuals.menu_corner_radius = egui::CornerRadius::ZERO;
@@ -82,9 +87,9 @@ fn apply_terminal_style(ctx: &egui::Context) {
         widget.corner_radius = egui::CornerRadius::ZERO;
         widget.bg_stroke = stroke;
         widget.fg_stroke = egui::Stroke::new(1.0, egui::Color32::BLACK);
-        widget.bg_fill = egui::Color32::WHITE;
+        widget.bg_fill = PAPER;
     }
-    visuals.widgets.hovered.bg_fill = egui::Color32::from_gray(230);
+    visuals.widgets.hovered.bg_fill = HOVER;
     visuals.widgets.active.bg_fill = egui::Color32::BLACK;
     visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
     ctx.all_styles_mut(|style| {
@@ -108,7 +113,7 @@ fn apply_terminal_style(ctx: &egui::Context) {
 
 pub(super) fn ruled_frame() -> egui::Frame {
     egui::Frame::new()
-        .fill(egui::Color32::WHITE)
+        .fill(PAPER)
         .stroke(egui::Stroke::new(2.0, egui::Color32::BLACK))
         .inner_margin(10)
         .corner_radius(egui::CornerRadius::ZERO)
@@ -134,35 +139,23 @@ pub(super) fn ink_bar(ui: &mut egui::Ui, left: &str, right: &str) {
     );
 }
 
-pub(super) fn ink_badge(ui: &mut egui::Ui, text: &str) {
-    let galley = ui.painter().layout_no_wrap(
-        text.to_owned(),
-        egui::FontId::monospace(13.0),
+pub(super) fn ink_badge(ui: &mut egui::Ui, text: &str, width: f32) -> egui::Response {
+    let shown = if text.chars().count() > 20 {
+        format!("{}…", text.chars().take(19).collect::<String>())
+    } else {
+        text.to_owned()
+    };
+    let galley =
+        ui.painter()
+            .layout_no_wrap(shown, egui::FontId::monospace(13.0), egui::Color32::WHITE);
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
+    ui.painter().rect_filled(rect, 0.0, egui::Color32::BLACK);
+    ui.painter().with_clip_rect(rect.shrink(4.0)).galley(
+        egui::pos2(rect.left() + 6.0, rect.center().y - galley.size().y / 2.0),
+        galley,
         egui::Color32::WHITE,
     );
-    let pad = egui::vec2(6.0, 2.0);
-    let (rect, _) = ui.allocate_exact_size(galley.size() + pad * 2.0, egui::Sense::hover());
-    ui.painter().rect_filled(rect, 0.0, egui::Color32::BLACK);
-    ui.painter()
-        .galley(rect.min + pad, galley, egui::Color32::WHITE);
-}
-
-pub(super) fn scale_tick(ui: &mut egui::Ui, t: f32) {
-    let width = (ui.available_width() - 120.0).max(48.0);
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 14.0), egui::Sense::hover());
-    let y = rect.center().y;
-    ui.painter()
-        .hline(rect.x_range(), y, egui::Stroke::new(1.0, egui::Color32::BLACK));
-    let x = rect.left() + rect.width() * t.clamp(0.04, 0.96);
-    let mark = egui::Rect::from_center_size(egui::pos2(x, y), egui::vec2(7.0, 7.0));
-    ui.painter().rect_filled(mark, 0.0, egui::Color32::BLACK);
-}
-
-pub(super) fn tick_at(key: &str) -> f32 {
-    let hash = key
-        .bytes()
-        .fold(0u32, |acc, byte| acc.wrapping_mul(33).wrapping_add(byte as u32));
-    (hash % 100) as f32 / 100.0
+    response
 }
 
 pub(super) fn hairline(ui: &mut egui::Ui) {
@@ -184,12 +177,17 @@ pub(super) fn dotted_band(ui: &mut egui::Ui) {
         egui::Stroke::new(2.0, egui::Color32::BLACK),
         egui::StrokeKind::Inside,
     );
+    ui.painter().rect_filled(rect.shrink(2.0), 0.0, PAPER);
     let mut x = rect.left() + 8.0;
-    let y = rect.center().y;
     while x < rect.right() - 6.0 {
-        ui.painter()
-            .circle_filled(egui::pos2(x, y), 1.1, egui::Color32::BLACK);
-        x += 6.0;
+        for y in [rect.top() + 7.0, rect.top() + 14.0] {
+            ui.painter().rect_filled(
+                egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(2.0, 2.0)),
+                0.0,
+                PINK,
+            );
+        }
+        x += 8.0;
     }
 }
 
@@ -288,13 +286,7 @@ pub(super) fn pixel_mark(ui: &mut egui::Ui, size: f32) {
         egui::StrokeKind::Inside,
     );
     const CELLS: &[&str] = &[
-        "#.#.#.#",
-        "#.....#",
-        "#.###.#",
-        "#.#.#.#",
-        "#.###.#",
-        "#.....#",
-        "#.#.#.#",
+        "#.#.#.#", "#.....#", "#.###.#", "#.#.#.#", "#.###.#", "#.....#", "#.#.#.#",
     ];
     let cell = (size - 10.0) / CELLS.len() as f32;
     let origin = rect.min + egui::vec2(5.0, 5.0);

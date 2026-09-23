@@ -17,7 +17,7 @@ const ACCOUNT: &str = "sqlite-value-key";
 static KEY_OVERRIDE: Mutex<Option<[u8; 32]>> = Mutex::new(None);
 static KEY_FILE: Mutex<Option<PathBuf>> = Mutex::new(None);
 
-/// 加密密钥和数据库放在一起，避免每次重新编译后钥匙串对不上。
+/// 只为兼容旧数据库保留同名 `.key` 文件的读取路径；新密钥留在钥匙串。
 pub fn bind_store(db_path: &Path) {
     let key_path = PathBuf::from(format!("{}.key", db_path.display()));
     *KEY_FILE.lock().expect("key file") = Some(key_path);
@@ -65,7 +65,9 @@ pub fn open(stored: &str) -> Result<String, String> {
     let cipher = Aes256Gcm::new_from_slice(&key).map_err(|err| err.to_string())?;
     let plain = cipher
         .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
-        .map_err(|_| "decryption failed; the keychain key may not match this database".to_string())?;
+        .map_err(|_| {
+            "decryption failed; the keychain key may not match this database".to_string()
+        })?;
     String::from_utf8(plain).map_err(|_| "decrypted value is not text".to_string())
 }
 
@@ -73,13 +75,10 @@ fn data_key() -> Result<[u8; 32], String> {
     if let Some(key) = *KEY_OVERRIDE.lock().expect("key override") {
         return Ok(key);
     }
-    if let Some(path) = KEY_FILE.lock().expect("key file").clone() {
-        if path.exists() {
-            return read_key_file(&path);
-        }
-        let key = keychain_key_or_new()?;
-        write_key_file(&path, &key)?;
-        return Ok(key);
+    if let Some(path) = KEY_FILE.lock().expect("key file").clone()
+        && path.exists()
+    {
+        return read_key_file(&path);
     }
     keychain_key_or_new()
 }
@@ -102,19 +101,6 @@ fn keychain_key_or_new() -> Result<[u8; 32], String> {
 fn read_key_file(path: &Path) -> Result<[u8; 32], String> {
     let stored = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
     decode_key(&stored)
-}
-
-fn write_key_file(path: &Path, key: &[u8; 32]) -> Result<(), String> {
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
-    std::fs::write(path, encode_key(key)).map_err(|err| err.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
 }
 
 fn random_key() -> Result<[u8; 32], String> {

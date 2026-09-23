@@ -4,8 +4,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::provider::providers::Provider;
-
 /// 已经落在数据库里的一条变量。
 #[derive(Debug, Clone, Serialize)]
 pub struct Variable {
@@ -22,16 +20,7 @@ pub struct Variable {
     pub is_secret: bool,
     pub created_at: String,
     pub updated_at: String,
-
 }
-
-pub struct LlmKey {
-    pub variable: Variable, 
-    // llmkey 情况下 key 为 api key 
-    pub provider: Provider,
-    pub base_url: String,
-}
-
 
 /// 界面提交的原始输入。缺省字段在 `normalize` 里补上。
 #[derive(Debug, Deserialize)]
@@ -119,9 +108,16 @@ pub fn validate_scope(scope: &str) -> Result<(), String> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
     {
-        return Err("scope can only contain letters, digits, dots, underscores, and hyphens".to_string());
+        return Err(
+            "scope can only contain letters, digits, dots, underscores, and hyphens".to_string(),
+        );
     }
     Ok(())
+}
+
+/// 剪贴板用的一行：`NAME=value`。值的引号规则与 `.env` 导出相同，不含备注。
+pub fn format_assignment(variable: &Variable) -> String {
+    format!("{}={}", variable.key, quote_dotenv_value(&variable.value))
 }
 
 /// 把变量排成 dotenv 文本。说明写在对应变量上方的 `#` 注释里。
@@ -199,5 +195,6 @@ mod tests {
         let dotenv = format_dotenv(&variables);
         assert!(dotenv.contains("# sample\n"));
         assert!(dotenv.contains("GREETING=\"hello world\"\n"));
+        assert_eq!(format_assignment(&variables[0]), "GREETING=\"hello world\"");
     }
 }

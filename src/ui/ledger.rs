@@ -2,8 +2,8 @@ use eframe::egui;
 
 use crate::models::Variable;
 
-use super::theme::{self, hairline};
 use super::KeyDesk;
+use super::theme::{self, hairline};
 
 impl KeyDesk {
     pub(super) fn show_list(&mut self, ui: &mut egui::Ui) {
@@ -15,22 +15,47 @@ impl KeyDesk {
         scopes.sort();
         scopes.dedup();
 
+        theme::ink_bar(ui, "STORED ENTRIES", "LOCAL VAULT");
+        ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.monospace("scope");
-            egui::ComboBox::from_id_salt("scope-filter")
-                .selected_text(if self.scope_filter.is_empty() {
-                    "ALL"
-                } else {
-                    self.scope_filter.as_str()
-                })
+            let selected = if self.scope_filter.is_empty() {
+                "ALL".to_string()
+            } else {
+                self.scope_filter.clone()
+            };
+            let response = egui::ComboBox::from_id_salt("scope-filter")
+                .selected_text(&selected)
+                .width(160.0)
+                .truncate()
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.scope_filter, String::new(), "ALL");
+                    ui.set_min_width(260.0);
+                    if ui
+                        .add_sized(
+                            [240.0, 24.0],
+                            egui::Button::selectable(self.scope_filter.is_empty(), "ALL"),
+                        )
+                        .clicked()
+                    {
+                        self.scope_filter.clear();
+                    }
                     for scope in &scopes {
-                        ui.selectable_value(&mut self.scope_filter, scope.clone(), scope);
+                        if ui
+                            .add_sized(
+                                [240.0, 24.0],
+                                egui::Button::selectable(self.scope_filter == *scope, scope)
+                                    .truncate(),
+                            )
+                            .on_hover_text(scope)
+                            .clicked()
+                        {
+                            self.scope_filter = scope.clone();
+                        }
                     }
                 });
+            response.response.on_hover_text(&selected);
             if ui.button("EXPORT").clicked() {
-                self.export();
+                self.export(ui.ctx());
             }
             if ui.button("IMPORT").clicked() {
                 self.open_env_import();
@@ -55,10 +80,12 @@ impl KeyDesk {
             .collect();
 
         egui::ScrollArea::vertical()
-            .max_height(280.0)
+            .max_height(160.0)
+            .min_scrolled_height(160.0)
+            .auto_shrink([false, false])
             .show(ui, |ui| {
                 for variable in visible {
-                    let shown = !variable.is_secret || self.revealed.contains(&variable.id);
+                    let shown = self.revealed.contains(&variable.id);
                     let preview = if !shown {
                         "••••".to_string()
                     } else if variable.value.is_empty() {
@@ -70,14 +97,29 @@ impl KeyDesk {
                         variable.value.clone()
                     };
                     ui.horizontal(|ui| {
-                        theme::ink_badge(ui, &variable.key);
-                        ui.monospace(format!("{:>8}", variable.scope));
-                        theme::scale_tick(ui, theme::tick_at(&variable.key));
-                        ui.monospace(preview);
+                        let key_width = 184.0;
+                        let scope_width = 140.0;
+                        let preview_width = (ui.available_width()
+                            - key_width
+                            - scope_width
+                            - ui.spacing().item_spacing.x * 2.0)
+                            .max(80.0);
+                        theme::ink_badge(ui, &variable.key, key_width).on_hover_text(&variable.key);
+                        ui.add_sized(
+                            [preview_width, 24.0],
+                            egui::Label::new(egui::RichText::new(preview).monospace()).truncate(),
+                        );
+                        ui.add_sized(
+                            [scope_width, 24.0],
+                            egui::Label::new(egui::RichText::new(&variable.scope).monospace())
+                                .truncate(),
+                        )
+                        .on_hover_text(&variable.scope);
                     });
                     ui.horizontal(|ui| {
-                        if variable.is_secret
-                            && ui.small_button(if shown { "HIDE" } else { "SHOW" }).clicked()
+                        if ui
+                            .small_button(if shown { "HIDE" } else { "SHOW" })
+                            .clicked()
                         {
                             if shown {
                                 self.revealed.remove(&variable.id);
@@ -86,7 +128,8 @@ impl KeyDesk {
                             }
                         }
                         if ui.small_button("COPY").clicked() {
-                            ui.ctx().copy_text(variable.value.clone());
+                            ui.ctx()
+                                .copy_text(crate::models::format_assignment(&variable));
                             self.message = format!("copied {}", variable.key);
                         }
                         if ui.small_button("EDIT").clicked() {
@@ -96,11 +139,46 @@ impl KeyDesk {
                             self.delete(variable.id);
                         }
                         if !variable.description.is_empty() {
-                            ui.monospace(&variable.description);
+                            ui.add_sized(
+                                [ui.available_width(), 20.0],
+                                egui::Label::new(
+                                    egui::RichText::new(&variable.description).monospace(),
+                                )
+                                .truncate(),
+                            );
                         }
                     });
                     hairline(ui);
                 }
             });
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn list_frame_height_is_stable_when_entries_change() {
+    let mut heights = Vec::new();
+    egui::__run_test_ui(|ui| {
+        ui.set_width(600.0);
+        for count in [0, 1, 10] {
+            let mut app = KeyDesk::locked();
+            app.variables = (0..count)
+                .map(|id| Variable {
+                    id,
+                    key: format!("KEY_{id}"),
+                    value: "value".to_string(),
+                    scope: "a-very-long-scope-name-for-layout".to_string(),
+                    description: String::new(),
+                    is_secret: false,
+                    created_at: String::new(),
+                    updated_at: String::new(),
+                })
+                .collect();
+            let frame = theme::ruled_frame().show(ui, |ui| app.show_list(ui));
+            heights.push(frame.response.rect.height());
+        }
+    });
+    for pass in heights.chunks_exact(3) {
+        assert!(pass.iter().all(|height| *height == pass[0]), "{pass:?}");
     }
 }

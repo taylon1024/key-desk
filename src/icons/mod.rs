@@ -29,6 +29,7 @@ pub fn icon_pixel_png(name: &str) -> Option<&'static [u8]> {
     }
 }
 
+#[cfg(test)]
 pub const PROVIDER_ICON_NAMES: &[&str] = &[
     "antropic",
     "baichuan",
