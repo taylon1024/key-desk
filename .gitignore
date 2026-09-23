@@ -1,8 +1,5 @@
-/backend/target
+/target
 /data
 *.db
 .DS_Store
-
-/frontend/node_modules
-/frontend/dist
-/frontend/.oxlintcache
+/.vscode
