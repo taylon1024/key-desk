@@ -1,0 +1,300 @@
+:root {
+  color-scheme: light;
+  --bg: #f3efe6;
+  --ink: #1d1a16;
+  --muted: #6f675d;
+  --line: #ddd4c6;
+  --card: #fffdf8;
+  --accent: #0f6e56;
+  --accent-ink: #f4fff9;
+  --danger: #9c3b31;
+  --shadow: 0 16px 40px rgb(70 48 20 / 8%);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgb(15 110 86 / 8%), transparent 32%),
+    var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 0.65rem 1.1rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button.ghost,
+button.text {
+  background: transparent;
+  color: var(--ink);
+}
+
+button.ghost {
+  border: 1px solid var(--line);
+}
+
+button.text {
+  padding: 0.2rem 0.35rem;
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+.app {
+  width: min(980px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2.5rem 0 4rem;
+}
+
+.topbar,
+.composer-head,
+.composer-foot,
+.toolbar,
+.item-title,
+.item-actions,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.topbar,
+.toolbar {
+  justify-content: space-between;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+  font-size: 3rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+h2 {
+  font-size: 1.05rem;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.status.ok::before,
+.status.bad::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status.ok {
+  color: var(--accent);
+}
+
+.status.bad {
+  color: var(--danger);
+}
+
+.banner {
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: #f8e7e3;
+  color: var(--danger);
+}
+
+.composer,
+.list {
+  margin-top: 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.composer {
+  padding: 1.1rem 1.2rem 1.2rem;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.7rem 0.8rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.check input {
+  width: auto;
+}
+
+.composer-foot {
+  justify-content: space-between;
+  margin-top: 0.9rem;
+}
+
+.list {
+  padding: 0.4rem 0.4rem 0.2rem;
+}
+
+.toolbar,
+li {
+  padding: 0.85rem 0.9rem;
+}
+
+.toolbar {
+  border-bottom: 1px solid var(--line);
+}
+
+.toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.toolbar select {
+  width: auto;
+}
+
+.count,
+.empty,
+.desc {
+  color: var(--muted);
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+li:last-child {
+  border-bottom: 0;
+}
+
+.item-main {
+  min-width: 0;
+}
+
+code,
+.value {
+  font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+}
+
+.scope,
+.secret {
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.scope {
+  background: #efe8da;
+}
+
+.secret {
+  background: #f3ddd8;
+  color: var(--danger);
+}
+
+.value,
+.desc {
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  padding: 1.4rem 0.9rem 1.2rem;
+}
+
+@media (max-width: 720px) {
+  .fields,
+  .topbar,
+  li {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .topbar-actions,
+  .item-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    font-size: 2.3rem;
+  }
+}
