@@ -86,6 +86,27 @@ impl KeyDesk {
         if self.db.is_some() {
             return;
         }
+        // Development branch opens the vault directly. beta0.0.1 on main still asks for Touch ID or a Mac password.
+        #[cfg(feature = "dev")]
+        {
+            let _ = ctx;
+            match db::open(&db::db_path()) {
+                Ok(connection) => {
+                    self.db = Some(connection);
+                    self.reload();
+                }
+                Err(err) => self.auth_error = format!("failed to open database: {err}"),
+            }
+        }
+        #[cfg(not(feature = "dev"))]
+        self.poll_unlock_with_auth(ctx);
+    }
+
+    #[cfg(not(feature = "dev"))]
+    fn poll_unlock_with_auth(&mut self, ctx: &egui::Context) {
+        if self.db.is_some() {
+            return;
+        }
         if self.auth.is_none() && !self.auth_started {
             self.auth_started = true;
             self.start_unlock(ctx);

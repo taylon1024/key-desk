@@ -3,6 +3,11 @@ name = "key-desk"
 version = "0.0.1"
 edition = "2024"
 
+# Development branch only. Drop this default before merging back onto a release branch.
+[features]
+default = ["dev"]
+dev = []
+
 [dependencies]
 aes-gcm = "0.10"
 base64 = "0.22"
