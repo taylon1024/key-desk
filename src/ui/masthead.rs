@@ -12,6 +12,9 @@ impl KeyDesk {
                 ui.label(egui::RichText::new("KEYDESK").monospace().size(28.0));
                 ui.monospace("LOCAL / ENCRYPTED / FAST");
             });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.horizontal(|ui| self.show_theme_picker(ui));
+            });
         });
     }
 }
