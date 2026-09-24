@@ -178,7 +178,7 @@ fn list_frame_height_is_stable_when_entries_change() {
             heights.push(frame.response.rect.height());
         }
     });
-    for pass in heights.chunks_exact(3) {
+    for pass in heights.as_chunks::<3>().0 {
         assert!(pass.iter().all(|height| *height == pass[0]), "{pass:?}");
     }
 }

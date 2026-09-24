@@ -333,7 +333,7 @@ fn form_frame_height_is_stable_across_modes() {
             heights.push(frame.response.rect.height());
         }
     });
-    for pass in heights.chunks_exact(4) {
+    for pass in heights.as_chunks::<4>().0 {
         assert!(pass.iter().all(|height| *height == pass[0]), "{pass:?}");
     }
 }

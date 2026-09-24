@@ -52,7 +52,10 @@ impl ReplacePrompt {
         let headline = if replacing_stored {
             format!("{key} already exists in this scope. Replace the stored entry?")
         } else if in_system {
-            format!("{key} exists in your login shell. Save a separate local entry?")
+            format!(
+                "{key} exists in your {}. Save a separate local entry?",
+                crate::system_env::external_source_name()
+            )
         } else {
             format!("Save {key}?")
         };
