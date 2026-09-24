@@ -1,7 +1,7 @@
 use eframe::egui;
 
-use super::theme::{self, pixel_mark, ruled_frame};
 use super::KeyDesk;
+use super::theme::{self, pixel_mark, ruled_frame};
 
 impl KeyDesk {
     pub(super) fn show_masthead(&mut self, ui: &mut egui::Ui) {
@@ -12,9 +12,11 @@ impl KeyDesk {
                 ui.label(egui::RichText::new("KEYDESK").monospace().size(28.0));
                 ui.monospace("local keys");
                 ui.monospace("encrypted at rest");
+                ui.add_space(4.0);
+                self.show_theme_picker(ui);
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                ruled_frame().show(ui, |ui| {
+                ruled_frame(ui).show(ui, |ui| {
                     ui.set_min_width(168.0);
                     ui.label(egui::RichText::new("VAULT").monospace().size(22.0));
                     ui.monospace("aes-256-gcm");
