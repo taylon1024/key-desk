@@ -11,14 +11,23 @@ dev = []
 [dependencies]
 aes-gcm = "0.10"
 base64 = "0.22"
-block2 = { version = "0.6", default-features = false }
 chrono = "0.4.45"
-eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow"] }
+# glow 在 macOS / Windows 上即可开窗。Linux 还要 x11 / wayland，否则 winit 会直接编译失败。
+eframe = { version = "0.36", default-features = false, features = [
+    "default_fonts",
+    "glow",
+    "x11",
+    "wayland",
+] }
 getrandom = "0.2"
 image = { version = "0.25", default-features = false, features = ["png"] }
-keyring = "3"
+# keyring 3 没有 default features。apple-native / windows-native 只在对应目标上链进实现。
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { version = "0.6", default-features = false }
 objc2 = { version = "0.6", default-features = false }
 objc2-foundation = { version = "0.3", default-features = false }
 objc2-local-authentication = { version = "0.3.2", default-features = false, features = ["std", "LAContext", "LAError", "block2"] }
-rusqlite = { version = "0.40.2", features = ["bundled"] }
-serde = { version = "1.0.229", features = ["derive"] }

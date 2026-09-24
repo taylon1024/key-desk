@@ -39,27 +39,69 @@ pub fn install_cjk_font(ctx: &egui::Context) {
 }
 
 fn terminal_font_bytes() -> Option<Vec<u8>> {
-    [
-        "/System/Library/Fonts/Monaco.ttf",
-        "/System/Library/Fonts/Menlo.ttc",
-        "/System/Library/Fonts/Supplemental/PTMono.ttc",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        r"C:\Windows\Fonts\consola.ttf",
-    ]
-    .into_iter()
-    .find_map(|path| std::fs::read(path).ok())
+    read_first_font(
+        &[
+            "/System/Library/Fonts/Monaco.ttf",
+            "/System/Library/Fonts/Menlo.ttc",
+            "/System/Library/Fonts/Supplemental/PTMono.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        ],
+        &["consola.ttf", "CascadiaMono.ttf", "cour.ttf", "lucon.ttf"],
+    )
 }
 
 fn cjk_font_bytes() -> Option<Vec<u8>> {
-    [
-        "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        "/System/Library/Fonts/STHeiti Medium.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-        r"C:\Windows\Fonts\msyh.ttc",
-    ]
-    .into_iter()
-    .find_map(|path| std::fs::read(path).ok())
+    // Windows 的 `msyh.ttc` 是字体集，egui 使用 face 0（微软雅黑常规）。
+    // 系统盘不一定是 C:，所以先查 `%SystemRoot%\Fonts`，再回退到 `C:\Windows\Fonts`。
+    read_first_font(
+        &[
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        ],
+        &[
+            "msyh.ttc",
+            "msyh.ttf",
+            "simsun.ttc",
+            "msjh.ttc",
+            "malgun.ttf",
+            "YuGothM.ttc",
+        ],
+    )
+}
+
+fn read_first_font(shared: &[&str], windows_names: &[&str]) -> Option<Vec<u8>> {
+    for path in shared {
+        if let Ok(bytes) = std::fs::read(path) {
+            return Some(bytes);
+        }
+    }
+    for path in windows_font_paths(windows_names) {
+        if let Ok(bytes) = std::fs::read(&path) {
+            return Some(bytes);
+        }
+    }
+    None
+}
+
+fn windows_font_paths(names: &[&str]) -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(root) = std::env::var("SystemRoot") {
+        dirs.push(std::path::PathBuf::from(root).join("Fonts"));
+    }
+    let fallback = std::path::PathBuf::from(r"C:\Windows\Fonts");
+    if !dirs.iter().any(|dir| dir == &fallback) {
+        dirs.push(fallback);
+    }
+    let mut paths = Vec::new();
+    for dir in dirs {
+        for name in names {
+            paths.push(dir.join(name));
+        }
+    }
+    paths
 }
 
 fn apply_terminal_style(ctx: &egui::Context) {
@@ -301,5 +343,20 @@ pub(super) fn pixel_mark(ui: &mut egui::Ui, size: f32) {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::windows_font_paths;
+
+    #[test]
+    fn windows_font_list_includes_yahei() {
+        let rendered: Vec<String> = windows_font_paths(&["msyh.ttc"])
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect();
+        assert!(rendered.iter().any(|path| path.contains("msyh.ttc")));
+        assert!(rendered.iter().any(|path| path.contains("Fonts")));
     }
 }

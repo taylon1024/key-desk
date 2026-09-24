@@ -1,6 +1,8 @@
-//! 变量值的落盘加密：AES-256-GCM，密钥放在系统钥匙串（macOS Keychain）。
+//! 变量值的落盘加密：AES-256-GCM。新密钥放在系统存储里
+//! （macOS 钥匙串 / Windows 凭据管理器）。旧版同名 `*.db.key` 仍会读取，不再新建。
 //!
 //! 数据库里存 `kd1:` + base64(nonce || ciphertext)。没有此前缀的旧数据视为明文，打开库时会改写成密文。
+//! 密文格式在各平台相同。已有的 `*.db.key` 继续有效，迁移完成前不要删除。
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -11,13 +13,11 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
 
 const PREFIX: &str = "kd1:";
-const SERVICE: &str = "key-desk";
-const ACCOUNT: &str = "sqlite-value-key";
 
 static KEY_OVERRIDE: Mutex<Option<[u8; 32]>> = Mutex::new(None);
 static KEY_FILE: Mutex<Option<PathBuf>> = Mutex::new(None);
 
-/// 只为兼容旧数据库保留同名 `.key` 文件的读取路径；新密钥留在钥匙串。
+/// 只为兼容旧数据库保留同名 `.key` 文件的读取路径；新密钥留在系统存储。
 pub fn bind_store(db_path: &Path) {
     let key_path = PathBuf::from(format!("{}.key", db_path.display()));
     *KEY_FILE.lock().expect("key file") = Some(key_path);
@@ -66,7 +66,10 @@ pub fn open(stored: &str) -> Result<String, String> {
     let plain = cipher
         .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
         .map_err(|_| {
-            "decryption failed; the keychain key may not match this database".to_string()
+            format!(
+                "decryption failed; the {} key may not match this database",
+                crate::os_key::backend_name()
+            )
         })?;
     String::from_utf8(plain).map_err(|_| "decrypted value is not text".to_string())
 }
@@ -80,22 +83,7 @@ fn data_key() -> Result<[u8; 32], String> {
     {
         return read_key_file(&path);
     }
-    keychain_key_or_new()
-}
-
-fn keychain_key_or_new() -> Result<[u8; 32], String> {
-    let entry = keyring::Entry::new(SERVICE, ACCOUNT).map_err(|err| err.to_string())?;
-    match entry.get_password() {
-        Ok(stored) => decode_key(&stored),
-        Err(keyring::Error::NoEntry) => {
-            let key = random_key()?;
-            entry
-                .set_password(&encode_key(&key))
-                .map_err(|err| format!("failed to store key in keychain: {err}"))?;
-            Ok(key)
-        }
-        Err(err) => Err(format!("failed to read keychain: {err}")),
-    }
+    crate::os_key::load_or_create()
 }
 
 fn read_key_file(path: &Path) -> Result<[u8; 32], String> {
@@ -103,27 +91,17 @@ fn read_key_file(path: &Path) -> Result<[u8; 32], String> {
     decode_key(&stored)
 }
 
-fn random_key() -> Result<[u8; 32], String> {
-    let mut key = [0u8; 32];
-    fill_random(&mut key)?;
-    Ok(key)
-}
-
 fn fill_random(buf: &mut [u8]) -> Result<(), String> {
     getrandom::getrandom(buf).map_err(|err| format!("failed to generate random bytes: {err}"))
-}
-
-fn encode_key(key: &[u8; 32]) -> String {
-    B64.encode(key)
 }
 
 fn decode_key(stored: &str) -> Result<[u8; 32], String> {
     let bytes = B64
         .decode(stored.trim())
-        .map_err(|_| "keychain key has an invalid format".to_string())?;
+        .map_err(|_| "key file has an invalid format".to_string())?;
     bytes
         .try_into()
-        .map_err(|_| "keychain key has the wrong length".to_string())
+        .map_err(|_| "key file has the wrong length".to_string())
 }
 
 #[cfg(test)]
