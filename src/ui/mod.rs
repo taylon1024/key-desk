@@ -41,6 +41,7 @@ pub struct KeyDesk {
     env_vars: Vec<EnvVar>,
     env_selected: HashSet<String>,
     env_load_error: String,
+    theme_id: theme::ThemeId,
 }
 
 impl KeyDesk {
@@ -65,6 +66,7 @@ impl KeyDesk {
             env_vars: Vec::new(),
             env_selected: HashSet::new(),
             env_load_error: String::new(),
+            theme_id: theme::load_theme_id(),
         }
     }
 
@@ -147,10 +149,33 @@ impl KeyDesk {
         }
     }
 
+    fn show_theme_picker(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.monospace("THEME");
+            let accent = self.theme_id.palette().accent;
+            let row = ui.spacing().interact_size.y;
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(row, row), egui::Sense::hover());
+            let chip = egui::Rect::from_center_size(rect.center(), egui::vec2(10.0, 10.0));
+            ui.painter().rect_filled(chip, 0.0, accent);
+            if theme::theme_picker(ui, &mut self.theme_id) {
+                theme::apply_theme(ui.ctx(), self.theme_id);
+                match theme::save_theme_id(self.theme_id) {
+                    Ok(()) => {
+                        if self.message.starts_with("theme not saved") {
+                            self.message.clear();
+                        }
+                    }
+                    Err(err) => self.message = format!("theme not saved: {err}"),
+                }
+                ui.ctx().request_repaint();
+            }
+        });
+    }
+
     fn show_lock(&mut self, ui: &mut egui::Ui) {
         theme::ink_bar(ui, "KEYDESK", "LOCKED");
         ui.add_space(8.0);
-        theme::ruled_frame().show(ui, |ui| {
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| {
             ui.label(egui::RichText::new("LOCKED").monospace().size(28.0));
             ui.monospace(auth::lock_prompt());
             ui.monospace(auth::lock_detail());
@@ -160,6 +185,10 @@ impl KeyDesk {
             if !self.auth_error.is_empty() {
                 ui.monospace(&self.auth_error);
             }
+            if !self.message.is_empty() {
+                ui.monospace(&self.message);
+            }
+            self.show_theme_picker(ui);
             if self.auth.is_none() && ui.button("UNLOCK").clicked() {
                 self.auth_started = true;
                 self.start_unlock(ui.ctx());
@@ -373,7 +402,7 @@ impl KeyDesk {
     fn show(&mut self, ui: &mut egui::Ui) {
         theme::ink_bar(ui, "KEYDESK", "LOCAL STORE");
         ui.add_space(8.0);
-        theme::ruled_frame().show(ui, |ui| self.show_masthead(ui));
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| self.show_masthead(ui));
         ui.add_space(8.0);
         // Keep the status line in the layout even before the first action.
         // Otherwise every save, copy, or validation error moves both panels.
@@ -383,9 +412,9 @@ impl KeyDesk {
         )
         .on_hover_text(&self.message);
         ui.add_space(6.0);
-        theme::ruled_frame().show(ui, |ui| self.show_list(ui));
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| self.show_list(ui));
         ui.add_space(8.0);
-        theme::ruled_frame().show(ui, |ui| self.show_form(ui));
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| self.show_form(ui));
         ui.add_space(8.0);
         theme::dotted_band(ui);
     }
@@ -393,6 +422,7 @@ impl KeyDesk {
 
 impl eframe::App for KeyDesk {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        theme::sync_ui(ui, self.theme_id);
         self.poll_unlock(ui.ctx());
         egui::Frame::central_panel(ui.style()).show(ui, |ui| {
             if self.db.is_none() {
