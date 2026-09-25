@@ -29,10 +29,7 @@ pub fn init() {
     {
         Ok(file) => dispatch.chain(file),
         Err(err) => {
-            eprintln!(
-                "key-desk: log file unavailable ({}): {err}",
-                path.display()
-            );
+            eprintln!("key-desk: log file unavailable ({}): {err}", path.display());
             dispatch
         }
     };
@@ -109,7 +106,10 @@ mod tests {
         let path = log_file_path();
         let text = path.to_string_lossy().replace('\\', "/");
         #[cfg(target_os = "macos")]
-        assert!(text.ends_with("Library/Logs/key-desk/key-desk.log"), "{text}");
+        assert!(
+            text.ends_with("Library/Logs/key-desk/key-desk.log"),
+            "{text}"
+        );
         #[cfg(target_os = "windows")]
         assert!(text.ends_with("key-desk/logs/key-desk.log"), "{text}");
     }

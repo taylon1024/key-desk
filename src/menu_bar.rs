@@ -33,7 +33,9 @@ pub fn install(ctx: &egui::Context) -> Option<Bar> {
     let open = MenuItem::with_id("open", "Open key-desk", true, None);
     let copy = MenuItem::with_id("copy-env", "Copy .env", true, None);
     let separator = PredefinedMenuItem::separator();
-    if menu.append(&open).is_err() || menu.append(&copy).is_err() || menu.append(&separator).is_err()
+    if menu.append(&open).is_err()
+        || menu.append(&copy).is_err()
+        || menu.append(&separator).is_err()
     {
         log::warn!("menu bar items could not be added");
         return None;

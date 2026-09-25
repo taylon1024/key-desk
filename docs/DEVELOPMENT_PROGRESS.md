@@ -6,7 +6,7 @@
 
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
-| 本地存储 | 可用 | SQLite 按 scope 和 key 唯一索引；变量值以 AES-256-GCM 加密。 |
+| 本地存储 | 可用 | SQLite 在 `~/Library/Application Support/key-desk/`；变量值以 AES-256-GCM 加密。仓库里的旧库只复制一次，原文件保留。 |
 | 变量管理 | 可用 | 新增、编辑、删除、筛选、复制单条和复制 `.env`。 |
 | Provider Key | 可用 | 模板提供变量名与 Base URL；示例密钥只作输入提示。 |
 | 环境导入 | 可用 | 支持登录 shell 与当前进程，筛选、选择和填入表单。 |
@@ -16,6 +16,7 @@
 ## 2026-09-25
 
 - macOS 菜单栏 KD 快捷项列出当前库中的变量。每一项可以复制 `KEY=value`，或打开主窗口编辑该条。值不会出现在菜单文字里。
+- 数据库、同名 `.key` 和 `theme_id` 改到用户的 Application Support 目录。`KEY_DESK_DB` 仍可覆盖路径。发布包由打包脚本去掉 `dev`，启动要求 Touch ID 或 Mac 密码。签名和公证需要本机已有的 Developer ID 证书。
 
 ## 2026-09-23
 
@@ -30,7 +31,7 @@
 
 1. 制定旧版 `.db.key` 文件迁移到钥匙串的可恢复流程；在迁移前不能自动删除旧文件。
 2. Provider Key 与 Base URL 目前分别写入；若第二条冲突，界面会报告部分成功。后续设计成可确认的原子写入。
-3. 发布前逐一核对各 Provider 默认 URL，并在关闭 `dev` feature 后做 Touch ID 实机验收。
+3. 用去掉 `dev` 的发布包在本机走一遍 Touch ID 或 Mac 密码。签名和公证要等 Developer ID 证书。
 4. 对最小窗口、长 scope、导入弹窗和替换弹窗进行手动视觉验收。
 
 ## 更新约定

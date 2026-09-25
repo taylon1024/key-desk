@@ -1,10 +1,10 @@
 mod auth;
 mod crypto;
+mod db;
+mod icons;
 mod logging;
 #[cfg(target_os = "macos")]
 mod menu_bar;
-mod db;
-mod icons;
 mod models;
 mod provider;
 mod system_env;

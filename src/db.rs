@@ -29,9 +29,92 @@ pub enum DbError {
 }
 
 pub fn db_path() -> PathBuf {
-    std::env::var("KEY_DESK_DB")
+    if let Ok(path) = std::env::var("KEY_DESK_DB") {
+        return PathBuf::from(path);
+    }
+    let path = support_dir().join("variables.db");
+    copy_legacy_store(&path);
+    path
+}
+
+fn support_dir() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        return home_dir().join("Library/Application Support/key-desk");
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home_dir().join("AppData").join("Roaming"))
+            .join("key-desk");
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        home_dir().join(".local/share/key-desk")
+    }
+}
+
+fn home_dir() -> PathBuf {
+    #[cfg(windows)]
+    let var = "USERPROFILE";
+    #[cfg(not(windows))]
+    let var = "HOME";
+    std::env::var(var)
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/variables.db"))
+        .unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// 开发期数据库在仓库 `data/`。正式目录还没有库时复制一份，原文件保留。
+fn copy_legacy_store(dest: &Path) {
+    if dest.exists() {
+        return;
+    }
+    let legacy = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/variables.db");
+    if !legacy.exists() {
+        return;
+    }
+    if let Some(parent) = dest.parent() {
+        if std::fs::create_dir_all(parent).is_err() {
+            log::warn!("could not create {}", parent.display());
+            return;
+        }
+    }
+    if std::fs::copy(&legacy, dest).is_err() {
+        log::warn!(
+            "could not copy vault from {} to {}",
+            legacy.display(),
+            dest.display()
+        );
+        return;
+    }
+    copy_if_missing(
+        PathBuf::from(format!("{}.key", legacy.display())),
+        PathBuf::from(format!("{}.key", dest.display())),
+    );
+    if let (Some(from_dir), Some(to_dir)) = (legacy.parent(), dest.parent()) {
+        copy_if_missing(from_dir.join("theme_id"), to_dir.join("theme_id"));
+    }
+    log::info!(
+        "copied vault from {} to {}",
+        legacy.display(),
+        dest.display()
+    );
+}
+
+fn copy_if_missing(from: PathBuf, to: PathBuf) {
+    if !from.exists() || to.exists() {
+        return;
+    }
+    if std::fs::copy(&from, &to).is_err() {
+        log::warn!("could not copy {} to {}", from.display(), to.display());
+        return;
+    }
+    #[cfg(unix)]
+    if to.extension().and_then(|ext| ext.to_str()) == Some("key") {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&to, std::fs::Permissions::from_mode(0o600));
+    }
 }
 
 pub fn open(path: &Path) -> Result<Connection, String> {
@@ -248,6 +331,23 @@ mod tests {
         ));
         let conn = open(&path).expect("open test db");
         (conn, path)
+    }
+
+    #[test]
+    fn default_database_is_outside_the_repo() {
+        if std::env::var_os("KEY_DESK_DB").is_some() {
+            return;
+        }
+        let path = db_path();
+        let text = path.to_string_lossy();
+        assert_eq!(
+            path.file_name().and_then(|name| name.to_str()),
+            Some("variables.db")
+        );
+        assert!(!text.contains("CARGO_MANIFEST_DIR"));
+        assert!(text.contains("key-desk"), "{text}");
+        #[cfg(target_os = "macos")]
+        assert!(text.contains("Application Support"), "{text}");
     }
 
     #[test]

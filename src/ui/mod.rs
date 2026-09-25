@@ -308,7 +308,11 @@ impl KeyDesk {
             Ok(_) => {
                 log::info!(
                     "{} {} in {}",
-                    if replace_existing { "replaced" } else { "saved" },
+                    if replace_existing {
+                        "replaced"
+                    } else {
+                        "saved"
+                    },
                     input.key,
                     input.scope
                 );
@@ -510,7 +514,11 @@ impl KeyDesk {
     #[cfg(target_os = "macos")]
     fn edit_one(&mut self, ctx: &egui::Context, id: i64) {
         show_window(ctx);
-        let Some(variable) = self.variables.iter().find(|variable| variable.id == id).cloned()
+        let Some(variable) = self
+            .variables
+            .iter()
+            .find(|variable| variable.id == id)
+            .cloned()
         else {
             self.message = "variable not found".to_string();
             return;
