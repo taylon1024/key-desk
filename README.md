@@ -12,7 +12,7 @@
 - 为常见模型服务商填入 API Key 和 Base URL 模板。
 - 十三套配色，选择记在本机。
 - 屏幕顶部的 **KD** 菜单列出当前变量，可以复制或打开窗口编辑。
-- 发布包每次启动要求 Touch ID 或 Mac 密码。
+- `main` 和发布包每次启动都要求 Touch ID 或 Mac 密码。
 
 ## 下载
 
@@ -24,14 +24,12 @@ macOS 12 及以上：[key-desk 0.0.2](https://github.com/taylon1024/key-desk/rel
 
 ## 开发
 
+`main` 上直接运行会要求 Touch ID 或 Mac 密码：
+
 ```bash
 cargo run
 ```
 
-开发分支默认跳过 Touch ID。要按发布包的方式启动：
-
-```bash
-cargo run --no-default-features
-```
+`dev` 分支默认跳过登录。
 
 `KEY_DESK_DB` 可以指定数据库文件。`EXPORT` 只写入剪贴板，不生成文件。
