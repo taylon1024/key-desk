@@ -1,19 +1,26 @@
 # key-desk
 
-本地环境变量与 Provider API Key 管理程序。原生 Rust 窗口，变量存在 SQLite 中；`EXPORT` 会把当前筛选结果以 `.env` 格式复制到剪贴板。
+本地保存环境变量和 LLM API Key 的 macOS 应用。变量放在本机 SQLite 里，值用 AES-256-GCM 加密。可以按 scope 筛选，把当前结果复制成 `.env`，也可以从菜单栏直接复制或编辑某一条。
 
-变量值用 AES-256-GCM 加密后写入 SQLite。新数据库的密钥存在系统钥匙串里（macOS 为「钥匙串访问」中的 `key-desk` / `sqlite-value-key`）；旧版本生成的同名 `.db.key` 文件仍可读取，**迁移完成前请勿删除旧密钥文件**。界面上的 `secret` 只控制是否遮罩显示。
+![key-desk 主窗口](docs/images/app.png)
 
-第一次写入时会在钥匙串里生成密钥；若系统弹出授权，需要允许本程序访问该钥匙串项。旧的明文记录会在打开数据库时自动改写成密文。开发分支默认启用 `dev` feature，跳过 Touch ID；验证发布模式请运行 `cargo run --no-default-features`。
+## 可以做什么
 
-## 目录
+- 按 scope 保存变量，同一 scope 里名称不能重复。
+- 列表默认遮住变量值，需要时再显示。复制时带上变量名，格式与 `.env` 一致。
+- 从登录 shell 导入已有环境变量。
+- 为常见模型服务商填入 API Key 和 Base URL 模板。
+- 十三套配色，选择记在本机。
+- 屏幕顶部的 **KD** 菜单列出当前变量，可以复制或打开窗口编辑。
+- 发布包每次启动要求 Touch ID 或 Mac 密码。
 
-- `src/main.rs`：打开窗口
-- `src/ui/`：界面（样式、列表、表单、环境导入、重名确认）
-- `src/db.rs`：SQLite 读写
-- `src/models.rs`：变量校验和 `.env` 文本
-- `data/variables.db`：运行后自动创建
-- `docs/DEVELOPMENT_PROGRESS.md`：开发进度、验证结果和待办
+## 下载
+
+macOS 12 及以上：[key-desk 0.0.2](https://github.com/taylon1024/key-desk/releases/tag/v0.0.2)
+
+安装包未签名。第一次打开时，在 Key Desk 上右键并选择“打开”。
+
+数据库、加密密钥文件和主题都在 `~/Library/Application Support/key-desk/`。密钥不写进数据库。界面上的 secret 只决定默认是否遮住显示。
 
 ## 开发
 
@@ -21,4 +28,10 @@
 cargo run
 ```
 
-`KEY_DESK_DB` 可覆盖数据库路径，默认是 `data/variables.db`。导出结果写入剪贴板，不会自动生成文件。
+开发分支默认跳过 Touch ID。要按发布包的方式启动：
+
+```bash
+cargo run --no-default-features
+```
+
+`KEY_DESK_DB` 可以指定数据库文件。`EXPORT` 只写入剪贴板，不生成文件。
