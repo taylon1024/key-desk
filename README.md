@@ -10,6 +10,8 @@
 
 `macOS 12+` · `Rust + egui` · `SQLite` · `AES-256-GCM`
 
+[![Rust CI](https://github.com/taylon1024/key-desk/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/taylon1024/key-desk/actions/workflows/rust-ci.yml)
+
 </div>
 
 <br>

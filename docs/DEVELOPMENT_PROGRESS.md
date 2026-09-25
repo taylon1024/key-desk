@@ -15,6 +15,7 @@
 
 ## 2026-09-25
 
+- 增加 GitHub Actions 的 macOS Rust 检查、Pull Request 模板和安全报告说明。首次远端运行的格式与 25 项测试通过；Rust 1.98 的 Clippy 报出两处 `chunks_exact` 告警，修正后重跑通过。
 - 合并 `dev` 的新版 README 和标题图；修正 `main` 的启动说明，并清理 4 处 Clippy 告警。
 - macOS 菜单栏 KD 快捷项列出当前库中的变量。每一项可以复制 `KEY=value`，或打开主窗口编辑该条。值不会出现在菜单文字里。
 - 数据库、同名 `.key` 和 `theme_id` 改到用户的 Application Support 目录。`KEY_DESK_DB` 仍可覆盖路径。发布包由打包脚本去掉 `dev`，启动要求 Touch ID 或 Mac 密码。签名和公证需要本机已有的 Developer ID 证书。
@@ -44,4 +45,5 @@
 - `cargo fmt --check`：通过。
 - `cargo test`：25 项测试通过（含主窗口、列表和表单布局稳定性、损坏密文处理）。
 - `cargo clippy --all-targets -- -D warnings`：首次运行因 4 处旧告警未通过；修正后重跑通过。
+- GitHub Actions `Rust CI / Rust checks`（macOS 15）：首次 Clippy 未通过；修正两处新告警后通过。
 - `cargo check --no-default-features`：通过（仅编译检查，尚未做发布模式实机验证）。
