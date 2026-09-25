@@ -1,5 +1,6 @@
 mod auth;
 mod crypto;
+mod logging;
 mod db;
 mod icons;
 mod models;
@@ -10,6 +11,7 @@ mod ui;
 use eframe::egui;
 
 fn main() -> eframe::Result {
+    logging::init();
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([700.0, 760.0])

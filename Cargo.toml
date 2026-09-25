@@ -14,6 +14,8 @@ base64 = "0.22"
 block2 = { version = "0.6", default-features = false }
 chrono = "0.4.45"
 eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow"] }
+fern = "0.7"
+log = "0.4"
 getrandom = "0.2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 keyring = "3"

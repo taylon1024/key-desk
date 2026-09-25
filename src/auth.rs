@@ -16,10 +16,13 @@ pub struct PendingAuth {
 }
 
 pub fn begin(on_done: impl Fn() + Send + 'static) -> Result<PendingAuth, String> {
+    log::info!("requesting Touch ID or Mac password");
     let context = unsafe { LAContext::new() };
     let policy = LAPolicy::DeviceOwnerAuthentication;
     if let Err(err) = unsafe { context.canEvaluatePolicy_error(policy) } {
-        return Err(ns_error_text(&err));
+        let message = ns_error_text(&err);
+        log::warn!("authentication unavailable: {message}");
+        return Err(message);
     }
 
     let (tx, rx) = mpsc::channel();

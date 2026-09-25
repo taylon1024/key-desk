@@ -94,6 +94,7 @@ impl KeyDesk {
         #[cfg(feature = "dev")]
         {
             let _ = ctx;
+            log::debug!("dev build skips Touch ID");
             match db::open(&db::db_path()) {
                 Ok(connection) => {
                     self.db = Some(connection);
@@ -143,7 +144,10 @@ impl KeyDesk {
                     self.auth_started = false;
                 }
             },
-            Err(err) => self.auth_error = err,
+            Err(err) => {
+                log::warn!("unlock failed: {err}");
+                self.auth_error = err;
+            }
         }
     }
 
@@ -180,7 +184,11 @@ impl KeyDesk {
                     self.scope_filter.clear();
                 }
             }
-            Err(err) => self.message = db_message(err),
+            Err(err) => {
+                let message = db_message(err);
+                log::error!("list failed: {message}");
+                self.message = message;
+            }
         }
     }
 
@@ -202,6 +210,7 @@ impl KeyDesk {
         let input = match input.normalize() {
             Ok(input) => input,
             Err(err) => {
+                log::warn!("save rejected: {err}");
                 self.message = err;
                 return;
             }
@@ -231,6 +240,11 @@ impl KeyDesk {
         if system_value.is_none() && stored.is_none() {
             return false;
         }
+        log::info!(
+            "name already exists, asking to replace {} in {}",
+            input.key,
+            input.scope
+        );
         self.replace_prompt = Some(replace::ReplacePrompt::from_existing(
             input.clone(),
             system_value,
@@ -256,6 +270,12 @@ impl KeyDesk {
         };
         match result {
             Ok(_) => {
+                log::info!(
+                    "{} {} in {}",
+                    if replace_existing { "replaced" } else { "saved" },
+                    input.key,
+                    input.scope
+                );
                 let mut message = if replace_existing {
                     "replaced".to_string()
                 } else {
@@ -297,7 +317,15 @@ impl KeyDesk {
                 self.editing_id = None;
                 self.reload();
             }
-            Err(err) => self.message = db_message(err),
+            Err(err) => {
+                let message = db_message(err);
+                log::error!(
+                    "save failed for {} in {}: {message}",
+                    input.key,
+                    input.scope
+                );
+                self.message = message;
+            }
         }
     }
 
@@ -322,6 +350,7 @@ impl KeyDesk {
                     self.editing_id = None;
                 }
                 self.revealed.remove(&id);
+                log::info!("deleted variable {id}");
                 self.message = "deleted".to_string();
                 self.reload();
                 if let Some(scope) = deleted_scope
@@ -351,10 +380,12 @@ impl KeyDesk {
             .cloned()
             .collect::<Vec<_>>();
         if selected.is_empty() {
+            log::info!("export skipped, no variables in the current scope");
             self.message = "nothing to copy".to_string();
             return;
         }
         ctx.copy_text(models::format_dotenv(&selected));
+        log::info!("copied {} variables to the clipboard", selected.len());
         self.message = "copied to clipboard".to_string();
     }
 

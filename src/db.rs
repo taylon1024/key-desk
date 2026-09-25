@@ -35,6 +35,20 @@ pub fn db_path() -> PathBuf {
 }
 
 pub fn open(path: &Path) -> Result<Connection, String> {
+    log::info!("opening database {}", path.display());
+    match open_database(path) {
+        Ok(connection) => {
+            log::debug!("database ready");
+            Ok(connection)
+        }
+        Err(err) => {
+            log::error!("database open failed: {err}");
+            Err(err)
+        }
+    }
+}
+
+fn open_database(path: &Path) -> Result<Connection, String> {
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())

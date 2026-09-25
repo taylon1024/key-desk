@@ -83,18 +83,13 @@ pub fn lookup_login_shell_var(key: &str) -> Result<Option<String>, String> {
         .arg("key-desk")
         .arg(key)
         .output()
-        .map_err(|err| format!("failed to run login shell ({shell_display}): {err}"))?;
+        .map_err(|err| shell_error(&shell_display, err))?;
     if output.status.success() {
         Ok(Some(trim_printenv_newline(&output.stdout)))
     } else if output.status.code() == Some(1) {
         Ok(None)
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!(
-            "login shell failed ({}): {}",
-            output.status,
-            stderr.trim()
-        ))
+        Err(shell_status_error(output.status, &output.stderr))
     }
 }
 
@@ -114,16 +109,24 @@ fn list_login_shell_env() -> Result<Vec<EnvVar>, String> {
         .arg("-c")
         .arg("/usr/bin/printenv")
         .output()
-        .map_err(|err| format!("failed to run login shell ({shell_display}): {err}"))?;
+        .map_err(|err| shell_error(&shell_display, err))?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "login shell failed ({}): {}",
-            output.status,
-            stderr.trim()
-        ));
+        return Err(shell_status_error(output.status, &output.stderr));
     }
     Ok(parse_printenv(&String::from_utf8_lossy(&output.stdout)))
+}
+
+fn shell_error(shell: &str, err: std::io::Error) -> String {
+    let message = format!("failed to run login shell ({shell}): {err}");
+    log::warn!("{message}");
+    message
+}
+
+fn shell_status_error(status: std::process::ExitStatus, stderr: &[u8]) -> String {
+    let stderr = String::from_utf8_lossy(stderr);
+    let message = format!("login shell failed ({status}): {}", stderr.trim());
+    log::warn!("{message}");
+    message
 }
 
 fn login_shell() -> PathBuf {
