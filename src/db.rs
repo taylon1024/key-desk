@@ -40,7 +40,7 @@ pub fn db_path() -> PathBuf {
 fn support_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
-        return home_dir().join("Library/Application Support/key-desk");
+        home_dir().join("Library/Application Support/key-desk")
     }
     #[cfg(target_os = "windows")]
     {
@@ -74,11 +74,11 @@ fn copy_legacy_store(dest: &Path) {
     if !legacy.exists() {
         return;
     }
-    if let Some(parent) = dest.parent() {
-        if std::fs::create_dir_all(parent).is_err() {
-            log::warn!("could not create {}", parent.display());
-            return;
-        }
+    if let Some(parent) = dest.parent()
+        && std::fs::create_dir_all(parent).is_err()
+    {
+        log::warn!("could not create {}", parent.display());
+        return;
     }
     if std::fs::copy(&legacy, dest).is_err() {
         log::warn!(

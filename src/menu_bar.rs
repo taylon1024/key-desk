@@ -41,7 +41,7 @@ pub fn install(ctx: &egui::Context) -> Option<Bar> {
         return None;
     }
 
-    let _ = MenuEvent::set_event_handler(Some(|event: MenuEvent| {
+    MenuEvent::set_event_handler(Some(|event: MenuEvent| {
         let Some(action) = parse_action(&event.id.0) else {
             return;
         };

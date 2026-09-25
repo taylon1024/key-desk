@@ -47,7 +47,7 @@ pub fn init() {
 pub fn log_file_path() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
-        return home_dir().join("Library/Logs/key-desk/key-desk.log");
+        home_dir().join("Library/Logs/key-desk/key-desk.log")
     }
     #[cfg(target_os = "windows")]
     {

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" role="img" aria-labelledby="title desc">
+  <title id="title">Key Desk</title>
+  <desc id="desc">A local, encrypted workspace for environment variables and API keys.</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#202431" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38edf5"/>
+      <stop offset="1" stop-color="#9b7fff"/>
+    </linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="38"/></filter>
+  </defs>
+
+  <rect width="1200" height="340" rx="20" fill="#111218"/>
+  <rect width="1200" height="340" rx="20" fill="url(#grid)" opacity=".62"/>
+  <ellipse cx="980" cy="175" rx="170" ry="130" fill="#22e6ee" opacity=".11" filter="url(#blur)"/>
+  <rect x="1" y="1" width="1198" height="338" rx="19" fill="none" stroke="#414756" stroke-width="2"/>
+
+  <rect x="42" y="42" width="1116" height="38" fill="#eff1ff"/>
+  <text x="58" y="67" fill="#151721" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="2">KEYDESK / LOCAL STORE</text>
+  <text x="1119" y="67" fill="#151721" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" text-anchor="end">● LOCAL FIRST</text>
+
+  <rect x="58" y="112" width="105" height="105" fill="#12141c" stroke="url(#glow)" stroke-width="3"/>
+  <rect x="75" y="129" width="71" height="71" fill="none" stroke="#eff1ff" stroke-width="3"/>
+  <path d="M85 140h10v10H85zm20 0h10v10h-10zm20 0h10v10h-10zM85 160h10v10H85zm40 0h10v10h-10zM85 180h10v10H85zm20 0h10v10h-10zm20 0h10v10h-10z" fill="#eff1ff"/>
+
+  <text x="194" y="174" fill="#eff1ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="66" font-weight="700" letter-spacing="-3">KEY DESK</text>
+  <text x="199" y="214" fill="#48eaf0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="21" letter-spacing="3">LOCAL  /  ENCRYPTED  /  FAST</text>
+
+  <rect x="860" y="121" width="280" height="116" fill="#171b24" stroke="#48eaf0" stroke-width="2"/>
+  <text x="882" y="151" fill="#a8adbb" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" letter-spacing="1">SCOPE  /  DEFAULT</text>
+  <path d="M882 164h236" stroke="#343d4b" stroke-width="1"/>
+  <text x="882" y="191" fill="#eff1ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17">API_KEY</text>
+  <text x="1118" y="191" fill="#48eaf0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" text-anchor="end">••••••</text>
+  <text x="882" y="219" fill="#eff1ff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17">DATABASE_URL</text>
+  <text x="1118" y="219" fill="#48eaf0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" text-anchor="end">••••</text>
+
+  <path d="M42 268h1116" stroke="#48eaf0" stroke-width="2"/>
+  <text x="42" y="302" fill="#b9bfce" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" letter-spacing="1">YOUR SECRETS. YOUR MAC. YOUR WORKFLOW.</text>
+  <text x="1158" y="302" fill="#48eaf0" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" letter-spacing="1" text-anchor="end">MACOS 12+  ↗</text>
+</svg>
