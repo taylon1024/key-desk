@@ -15,6 +15,7 @@
 
 ## 2026-09-25
 
+- 增加 GitHub Actions 的 macOS Rust 检查与 Pull Request 模板；首次远端运行结果待验证。
 - 合并 `dev` 的新版 README 和标题图；修正 `main` 的启动说明，并清理 4 处 Clippy 告警。
 - macOS 菜单栏 KD 快捷项列出当前库中的变量。每一项可以复制 `KEY=value`，或打开主窗口编辑该条。值不会出现在菜单文字里。
 - 数据库、同名 `.key` 和 `theme_id` 改到用户的 Application Support 目录。`KEY_DESK_DB` 仍可覆盖路径。发布包由打包脚本去掉 `dev`，启动要求 Touch ID 或 Mac 密码。签名和公证需要本机已有的 Developer ID 证书。
