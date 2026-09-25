@@ -41,6 +41,11 @@ pub struct KeyDesk {
     env_vars: Vec<EnvVar>,
     env_selected: HashSet<String>,
     env_load_error: String,
+    theme_id: theme::ThemeId,
+    #[cfg(target_os = "macos")]
+    menu_bar: Option<crate::menu_bar::Bar>,
+    #[cfg(target_os = "macos")]
+    menu_bar_started: bool,
 }
 
 impl KeyDesk {
@@ -65,6 +70,11 @@ impl KeyDesk {
             env_vars: Vec::new(),
             env_selected: HashSet::new(),
             env_load_error: String::new(),
+            theme_id: theme::load_theme_id(),
+            #[cfg(target_os = "macos")]
+            menu_bar: None,
+            #[cfg(target_os = "macos")]
+            menu_bar_started: false,
         }
     }
 
@@ -151,10 +161,30 @@ impl KeyDesk {
         }
     }
 
+    fn show_theme_picker(&mut self, ui: &mut egui::Ui) {
+        let height = ui.spacing().interact_size.y;
+        ui.horizontal_centered(|ui| {
+            ui.label(egui::RichText::new("THEME").monospace().size(13.0));
+            theme::palette_swatch(ui, self.theme_id.palette(), height);
+            if theme::theme_picker(ui, &mut self.theme_id) {
+                theme::apply_theme(ui.ctx(), self.theme_id);
+                match theme::save_theme_id(self.theme_id) {
+                    Ok(()) => {
+                        if self.message.starts_with("theme not saved") {
+                            self.message.clear();
+                        }
+                    }
+                    Err(err) => self.message = format!("theme not saved: {err}"),
+                }
+                ui.ctx().request_repaint();
+            }
+        });
+    }
+
     fn show_lock(&mut self, ui: &mut egui::Ui) {
         theme::ink_bar(ui, "KEYDESK", "LOCKED");
         ui.add_space(8.0);
-        theme::ruled_frame().show(ui, |ui| {
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| {
             ui.label(egui::RichText::new("LOCKED").monospace().size(28.0));
             ui.monospace("Touch ID or Mac password");
             ui.monospace("required every time key-desk opens");
@@ -164,6 +194,10 @@ impl KeyDesk {
             if !self.auth_error.is_empty() {
                 ui.monospace(&self.auth_error);
             }
+            if !self.message.is_empty() {
+                ui.monospace(&self.message);
+            }
+            self.show_theme_picker(ui);
             if self.auth.is_none() && ui.button("UNLOCK").clicked() {
                 self.auth_started = true;
                 self.start_unlock(ui.ctx());
@@ -190,6 +224,8 @@ impl KeyDesk {
                 self.message = message;
             }
         }
+        #[cfg(target_os = "macos")]
+        self.sync_menu_bar();
     }
 
     fn save(&mut self) {
@@ -404,7 +440,7 @@ impl KeyDesk {
     fn show(&mut self, ui: &mut egui::Ui) {
         theme::ink_bar(ui, "KEYDESK", "LOCAL STORE");
         ui.add_space(8.0);
-        theme::ruled_frame().show(ui, |ui| self.show_masthead(ui));
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| self.show_masthead(ui));
         ui.add_space(8.0);
         // Keep the status line in the layout even before the first action.
         // Otherwise every save, copy, or validation error moves both panels.
@@ -414,16 +450,117 @@ impl KeyDesk {
         )
         .on_hover_text(&self.message);
         ui.add_space(6.0);
-        theme::ruled_frame().show(ui, |ui| self.show_list(ui));
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| self.show_list(ui));
         ui.add_space(8.0);
-        theme::ruled_frame().show(ui, |ui| self.show_form(ui));
+        theme::ruled_frame(ui.ctx()).show(ui, |ui| self.show_form(ui));
         ui.add_space(8.0);
         theme::dotted_band(ui);
     }
+
+    #[cfg(target_os = "macos")]
+    fn attach_menu_bar(&mut self, ctx: &egui::Context) {
+        if self.menu_bar_started {
+            return;
+        }
+        self.menu_bar_started = true;
+        self.menu_bar = crate::menu_bar::install(ctx);
+        self.sync_menu_bar();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn attach_menu_bar(&mut self, _ctx: &egui::Context) {}
+
+    #[cfg(target_os = "macos")]
+    fn poll_menu_bar(&mut self, ctx: &egui::Context) {
+        for action in crate::menu_bar::take_actions() {
+            match action {
+                crate::menu_bar::Action::Open => show_window(ctx),
+                crate::menu_bar::Action::CopyAll => {
+                    show_window(ctx);
+                    self.copy_all_env(ctx);
+                }
+                crate::menu_bar::Action::CopyOne(id) => self.copy_one(ctx, id),
+                crate::menu_bar::Action::Edit(id) => self.edit_one(ctx, id),
+                crate::menu_bar::Action::Quit => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn sync_menu_bar(&self) {
+        if let Some(bar) = &self.menu_bar {
+            let listed = self.db.as_ref().map(|_| self.variables.as_slice());
+            crate::menu_bar::sync(bar, listed);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn copy_one(&mut self, ctx: &egui::Context, id: i64) {
+        let Some(variable) = self.variables.iter().find(|variable| variable.id == id) else {
+            self.message = "variable not found".to_string();
+            return;
+        };
+        ctx.copy_text(models::format_assignment(variable));
+        log::info!("menu bar copied {}", variable.key);
+        self.message = format!("copied {}", variable.key);
+    }
+
+    #[cfg(target_os = "macos")]
+    fn edit_one(&mut self, ctx: &egui::Context, id: i64) {
+        show_window(ctx);
+        let Some(variable) = self.variables.iter().find(|variable| variable.id == id).cloned()
+        else {
+            self.message = "variable not found".to_string();
+            return;
+        };
+        log::info!("menu bar editing {}", variable.key);
+        self.message = format!("editing {}", variable.key);
+        self.start_edit(&variable);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn poll_menu_bar(&mut self, _ctx: &egui::Context) {}
+
+    #[cfg(target_os = "macos")]
+    fn copy_all_env(&mut self, ctx: &egui::Context) {
+        if self.db.is_none() {
+            log::info!("menu bar copy skipped, vault is locked");
+            self.message = "unlock key-desk before copying".to_string();
+            return;
+        }
+        match db::list(self.db(), None) {
+            Ok(variables) if variables.is_empty() => {
+                log::info!("menu bar copy skipped, vault is empty");
+                self.message = "nothing to copy".to_string();
+            }
+            Ok(variables) => {
+                let count = variables.len();
+                ctx.copy_text(models::format_dotenv(&variables));
+                log::info!("menu bar copied {count} variables to the clipboard");
+                self.message = "copied to clipboard".to_string();
+            }
+            Err(err) => {
+                let message = db_message(err);
+                log::warn!("menu bar copy failed: {message}");
+                self.message = message;
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn show_window(ctx: &egui::Context) {
+    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
 }
 
 impl eframe::App for KeyDesk {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        theme::sync_ui(ui, self.theme_id);
+        self.attach_menu_bar(ui.ctx());
+        self.poll_menu_bar(ui.ctx());
         self.poll_unlock(ui.ctx());
         egui::Frame::central_panel(ui.style()).show(ui, |ui| {
             if self.db.is_none() {

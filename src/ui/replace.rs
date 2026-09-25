@@ -73,7 +73,7 @@ impl KeyDesk {
         }
         let mut action = None;
         let response = egui::Modal::new(egui::Id::new("replace-existing"))
-            .frame(theme::ruled_frame())
+            .frame(theme::ruled_frame(ctx))
             .backdrop_color(egui::Color32::from_black_alpha(160))
             .show(ctx, |ui| {
                 ui.set_min_width(380.0);

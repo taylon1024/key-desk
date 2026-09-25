@@ -99,11 +99,21 @@ impl KeyDesk {
                     ui.horizontal(|ui| {
                         let key_width = 184.0;
                         let scope_width = 140.0;
+                        let provider = crate::provider::provider_label_for_key(&variable.key);
+                        let icon_width = if provider.is_some() {
+                            16.0 + ui.spacing().item_spacing.x
+                        } else {
+                            0.0
+                        };
                         let preview_width = (ui.available_width()
                             - key_width
                             - scope_width
+                            - icon_width
                             - ui.spacing().item_spacing.x * 2.0)
                             .max(80.0);
+                        if let Some(label) = provider {
+                            theme::provider_icon(ui, label);
+                        }
                         theme::ink_badge(ui, &variable.key, key_width).on_hover_text(&variable.key);
                         ui.add_sized(
                             [preview_width, 24.0],
@@ -174,7 +184,7 @@ fn list_frame_height_is_stable_when_entries_change() {
                     updated_at: String::new(),
                 })
                 .collect();
-            let frame = theme::ruled_frame().show(ui, |ui| app.show_list(ui));
+            let frame = theme::ruled_frame(ui.ctx()).show(ui, |ui| app.show_list(ui));
             heights.push(frame.response.rect.height());
         }
     });

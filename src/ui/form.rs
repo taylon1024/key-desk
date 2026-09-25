@@ -329,7 +329,7 @@ fn form_frame_height_is_stable_across_modes() {
             app.form.kind = kind;
             app.form.scope_new = new_scope;
             app.editing_id = editing.then_some(1);
-            let frame = theme::ruled_frame().show(ui, |ui| app.show_form(ui));
+            let frame = theme::ruled_frame(ui.ctx()).show(ui, |ui| app.show_form(ui));
             heights.push(frame.response.rect.height());
         }
     });

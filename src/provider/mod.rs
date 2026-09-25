@@ -38,6 +38,13 @@ pub fn llm_templates() -> &'static [LlmTemplate] {
     TEMPLATES
 }
 
+pub fn provider_label_for_key(key: &str) -> Option<&'static str> {
+    TEMPLATES
+        .iter()
+        .find(|template| template.api_key_name == key || template.base_url_name == key)
+        .map(|template| template.label)
+}
+
 const TEMPLATES: &[LlmTemplate] = &[
     template(
         "Anthropic",

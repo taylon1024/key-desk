@@ -24,3 +24,6 @@ objc2-foundation = { version = "0.3", default-features = false }
 objc2-local-authentication = { version = "0.3.2", default-features = false, features = ["std", "LAContext", "LAError", "block2"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+tray-icon = { version = "0.25.1", default-features = false }

@@ -1,6 +1,8 @@
 mod auth;
 mod crypto;
 mod logging;
+#[cfg(target_os = "macos")]
+mod menu_bar;
 mod db;
 mod icons;
 mod models;
